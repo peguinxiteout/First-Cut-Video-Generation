@@ -1,0 +1,103 @@
+/* =========================================================================
+   MID-TIER — sophisticated, contemporary, lifestyle-led, sustainability-aware.
+
+   Soft sand paper and warm stone panels, espresso type, Citrine bronze
+   hairlines and numerals, sage for the green story, ochre sparingly.
+   Playfair Display headings over Outfit. Square blocks, outline icons, a
+   bronze frame line offset around photographs, numbered section marks —
+   an editorial magazine rather than a recoloured flyer.
+   ========================================================================= */
+
+.c-mid .title { font-weight: 500; letter-spacing: -0.005em; }
+.c-mid .kicker { color: var(--accent-text); display: flex; align-items: center; gap: 3mm; }
+.c-mid .kicker::after { content: ""; flex: 0 0 14mm; height: 0.5pt; background: var(--accent); }
+.c-mid .rule { width: 0; height: 0; margin: 2mm 0 2.4mm; }
+.c-mid .lead { font-family: var(--f-head); font-style: italic; font-weight: 400; color: var(--ink); line-height: 1.42; }
+.c-mid .body p { color: var(--ink-soft); }
+.c-mid .ic { stroke-width: 1.3; }
+.c-mid .ic-wrap { color: var(--accent); }
+
+/* the offset bronze frame: photographs sit in a hairline a few mm away */
+.c-mid .slot.image:not(.bleed-t):not(.bleed-l):not(.bleed-r):not(.bleed-b) {
+  outline: 0.5pt solid var(--accent); outline-offset: 1.6mm;
+}
+.c-mid .slot.plan { background: var(--paper-alt); border-radius: 0; }
+
+/* folio: number in a bronze hairline square, the project in small caps */
+.c-mid .folio { justify-content: space-between; }
+.c-mid .folio-n {
+  order: 2; font-family: var(--f-head); font-size: var(--fs-small); color: var(--accent-text);
+  border-top: 0.5pt solid var(--accent); padding-top: 1mm; min-width: 8mm; text-align: right;
+}
+.c-mid .folio-name { order: 1; text-transform: uppercase; letter-spacing: 0.22em; font-size: var(--fs-kicker); }
+
+/* split pages: a bronze hairline down the text column's edge */
+.c-mid .k-overview:not(.v-band):not(.v-stack) .box.text,
+.c-mid .k-figures:not(.v-band):not(.v-stack) .box.text {
+  border-left: 0.5pt solid var(--rule); padding-left: 7mm;
+}
+
+/* --- cover ---------------------------------------------------------- */
+.c-mid .k-cover .box.text { display: grid; grid-template-columns: 7fr 4fr 2fr; column-gap: 9mm; align-items: start; }
+.o-portrait.c-mid .k-cover .box.text { grid-template-columns: 1fr 1fr; row-gap: 8mm; align-content: start; }
+.o-portrait.c-mid .k-cover .cv-main { grid-column: 1 / -1; }
+.c-mid .k-cover .display { font-weight: 500; letter-spacing: -0.01em; }
+.c-mid .k-cover .cv-lead { margin-top: 4mm; font-family: var(--f-head); font-style: italic; font-size: var(--fs-lead); color: var(--accent-text); line-height: 1.4; }
+.c-mid .k-cover .cv-side { border-left: 0.5pt solid var(--accent); padding-left: 6mm; display: flex; flex-direction: column; gap: 3.6mm; }
+.c-mid .cv-fact { display: flex; flex-direction: column; gap: 0.8mm; font-size: var(--fs-small); line-height: 1.35; }
+.c-mid .cv-fact .lbl { font-size: var(--fs-kicker); text-transform: uppercase; letter-spacing: 0.2em; color: var(--support-text); font-weight: 500; }
+.c-mid .cv-logo { display: flex; justify-content: flex-end; }
+.c-mid .k-cover .cover-logo { width: 32mm; height: 17mm; }
+.c-mid .k-cover .cover-logo img { width: 100%; height: 100%; object-fit: contain; object-position: right top; }
+
+/* --- overview -------------------------------------------------------- */
+.c-mid .figures.foot { border-top: 0.5pt solid var(--accent); }
+.c-mid .figures dt { color: var(--accent-text); font-weight: 400; }
+.c-mid .points li { padding: 2.4mm 0; border-bottom: 0.5pt solid var(--rule); }
+.c-mid .points li .ic { color: var(--support); }
+
+/* --- distinctions: a numbered list, hairline-ruled ------------------------- */
+.c-mid .cards { grid-template-columns: 1fr; gap: 0; }
+.c-mid .cards.n4, .c-mid .cards.n5, .c-mid .cards.n6 { grid-template-columns: 1fr 1fr; column-gap: 8mm; }
+.c-mid .card { padding: 3.8mm 0; border-top: 0.5pt solid var(--rule); gap: 4mm; }
+.c-mid .card .num-mark { font-size: var(--fs-h2); color: var(--accent-text); font-style: italic; min-width: 7mm; }
+.c-mid .card h3 { font-weight: 500; }
+.c-mid .card-fig { font-weight: 500; color: var(--support-text); }
+.c-mid .k-figures .cards { grid-template-columns: 1fr 1fr; column-gap: 8mm; }
+.c-mid .k-figures .card .ic-wrap { color: var(--support); }
+
+/* --- sustainability figures ----------------------------------------- */
+.c-mid .stats { border-top: 0.5pt solid var(--support); border-bottom: 0.5pt solid var(--support); padding: 5mm 0; }
+.c-mid .stat dt { color: var(--support-text); font-weight: 400; }
+.c-mid .stat + .stat { border-left: 0.5pt solid var(--rule); padding-left: 4mm; }
+
+/* --- amenities -------------------------------------------------------- */
+.c-mid .zones { --zone-cols: 3; }
+.o-portrait.c-mid .zones { --zone-cols: 2; }
+.c-mid .zone h3 { font-family: var(--f-head); text-transform: none; letter-spacing: 0; font-size: var(--fs-h3); font-weight: 500; }
+.c-mid .zone h3 .ic { color: var(--accent); }
+.c-mid .k-amenities .box.head { border-right: 0.5pt solid var(--rule); padding-right: 5mm; }
+
+/* --- residences -------------------------------------------------------- */
+.c-mid table.units th { border-bottom-color: var(--accent); }
+.c-mid table.units .u-name { font-weight: 500; }
+.c-mid table.units .price { color: var(--accent-text); }
+
+/* --- location ------------------------------------------------------------ */
+.c-mid .places .dist { color: var(--support-text); }
+.c-mid .k-location .card { border-top: 0.5pt solid var(--accent); }
+
+/* --- gallery ------------------------------------------------------------- */
+.c-mid .slot.image figcaption.tag { left: 0; right: auto; background: var(--paper); color: var(--ink); letter-spacing: 0.18em; font-size: var(--fs-kicker); padding: 1.4mm 2.6mm; }
+
+/* --- closing: espresso ground ----------------------------------------------- */
+.c-mid .k-closing {
+  --page-bg: var(--dark); --ink: var(--on-dark); --ink-soft: var(--on-dark-soft);
+  --accent-text: #E2B98F; --rule: rgba(250,247,242,.18); --support-text: #B8CDB9;
+}
+.c-mid .k-closing .box.text { padding-left: 4mm; }
+.c-mid .k-closing .phone { font-family: var(--f-head); font-weight: 500; font-size: calc(var(--fs-h2) * 1.5); }
+.c-mid .k-closing .ic { color: #E2B98F; }
+.c-mid .closing-logo { display: inline-flex; margin-bottom: 9mm; height: 20mm; }
+.c-mid .closing-logo img { height: 100%; width: auto; }
+.c-mid .closing-logo.plate { padding: 2.4mm 4mm; background: var(--paper); }

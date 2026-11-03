@@ -1,0 +1,45 @@
+# Sections/perspectives a person can select for a blog post. The label is
+# what the UI shows; the guidance tells the planner what the section must
+# actually deliver. Planner is free to name headings naturally — these ids
+# are requirements, not literal headings (literal, formulaic headings were
+# one of the evaluation's "feels AI-generated" findings).
+sections:
+  strengths:
+    label: Strengths
+    guidance: What genuinely works in favour of the subject, with concrete reasons.
+  weaknesses:
+    label: Weaknesses
+    guidance: Honest limitations and trade-offs a careful buyer should weigh. Not softened into positives.
+  pros_cons:
+    label: Pros & Cons
+    guidance: A balanced, scannable set of advantages and drawbacks.
+  comparison:
+    label: Comparison
+    guidance: Compare against clear alternatives on the same criteria, so the reader can choose.
+  investment_perspective:
+    label: Investment Perspective
+    guidance: Holding horizon, what drives value, and risks. Use figures only if provided.
+  location_analysis:
+    label: Location Analysis
+    guidance: Connectivity, neighbourhood character, and daily-life logistics.
+  amenities:
+    label: Amenities
+    guidance: What the amenities mean for daily life, not just a list of them.
+  market_perspective:
+    label: Market Perspective
+    guidance: Where the micro-market stands and what is shaping it.
+  lifestyle_perspective:
+    label: Lifestyle Perspective
+    guidance: What it feels like to live here — routine, community, pace.
+  pricing_value:
+    label: Pricing & Value
+    guidance: What the buyer gets for the money. Quote prices only if provided.
+  future_potential:
+    label: Future Potential
+    guidance: Upcoming infrastructure or changes that could matter, stated with appropriate caution.
+  buyer_considerations:
+    label: Buyer Considerations
+    guidance: Practical checks before committing — due diligence, fit, timing.
+  conclusion:
+    label: Conclusion
+    guidance: A clear, honest takeaway tied to who this suits best.

@@ -1,0 +1,12 @@
+{# THE OVERVIEW — the project's story: what it is, for whom, and what makes
+   it different, with its figures. Never a repeat of the cover. #}
+{% set d = page.data %}
+{{ m.images(page) }}
+{% call m.box(page, 'text') %}
+  <div class="col-head">{{ m.head(page.words, lead=page.variant != 'band') }}</div>
+  <div class="col-body">{% if page.variant == 'band' and page.words.lead %}<p class="lead">{{ page.words.lead | nobreak }}</p>{% endif %}
+    {{ m.body(page.words) }}
+    {% if page.words.cards %}<ul class="points">{% for c in page.words.cards %}<li>{{ icon(c.icon or 'check') }}<div><b>{{ c.title | nobreak }}</b>{% if c.text %} <span>{{ c.text | nobreak }}</span>{% endif %}</div></li>{% endfor %}</ul>{% endif %}
+  </div>
+  {{ m.figures(d.figures, 'foot') }}
+{% endcall %}

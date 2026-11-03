@@ -1,0 +1,51 @@
+{
+ "property_id": "SKY-VILLAS-AT-ESTATE-128",
+ "name": "Sky Villas at Estate 128",
+ "developer": "Max Estates Limited",
+ "location": {
+  "city": "Noida",
+  "area": "Sector 128, Noida-Greater Noida Expressway",
+  "address": null
+ },
+ "property_type": "Penthouses",
+ "category": "luxury",
+ "price": null,
+ "unit_types": [
+  {
+   "name": "Sky Villa 1",
+   "carpet_area": "5,789 sq.ft",
+   "price": ""
+  },
+  {
+   "name": "Sky Villa 2",
+   "carpet_area": "6,827 sq.ft",
+   "price": ""
+  }
+ ],
+ "usps": [
+  "Triplex penthouses spread across 3 floors featuring a double-heighted living room and a private swimming pool.",
+  "Biophilic design philosophy incorporating agrarian fields, expansive orchards, and over 80% open spaces (7 acres of open greens).",
+  "Wraparound balconies (12 to 13 feet wide) that offer unobstructed views for better ventilation and sunlight.",
+  "Personal elevators, an exclusive gym area, dedicated study corner, and a private bar area in each Sky Villa."
+ ],
+ "amenities": [
+  "\"The Hub\" - a wellness and social core for indoor and outdoor curated amenities.",
+  "Lawn tennis court, cycling track, and a dedicated jogging path.",
+  "Pet park, amphitheatre, and children's play area.",
+  "All-day dining and open cabanas to promote social well-being."
+ ],
+ "target_audience": "Ultra-high-net-worth individuals and large affluent families looking for an exclusive, wellness-driven triplex penthouse lifestyle offering generous spaces, privacy, and expansive amenities on the Noida Expressway.",
+ "contact": {
+  "phone": "+91-7026010381",
+  "email": null,
+  "website": null
+ },
+ "cta": null,
+ "tagline": "Inspiring generous living",
+ "possession": "May 2028",
+ "rera_number": "UPRERAPRJ446459",
+ "project_size": "10 Acres, 3 Towers, 261 Apartments",
+ "landmarks": [],
+ "description": null,
+ "brand_color": null
+}

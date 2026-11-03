@@ -1,0 +1,127 @@
+{
+ "property_id": "ANAMIKA-HIGH-POINT",
+ "name": "Anamika High Point",
+ "developer": "Constéra Realty Pvt. Ltd.",
+ "location": {
+  "city": "Ahmedabad",
+  "area": "S.G. Highway",
+  "address": null
+ },
+ "property_type": "Apartments",
+ "category": "affordable",
+ "price": null,
+ "unit_types": [
+  {
+   "name": "4 BHK Classy Residences",
+   "carpet_area": "1,682.84 sq.ft",
+   "price": ""
+  },
+  {
+   "name": "4 BHLK Luxurious Retreats",
+   "carpet_area": "2,095.75 sq.ft",
+   "price": ""
+  },
+  {
+   "name": "5 BHLK Lifestyle Living",
+   "carpet_area": "3,119.95 sq.ft",
+   "price": ""
+  }
+ ],
+ "usps": [
+  "Features 31-storey iconic towers offering unobstructed, panoramic views of the S.G. Highway and Sindhu Bhavan Road.",
+  "Offers an expansive 70,000 sq.ft. podium living space on the 1st floor featuring 30+ ultra-modern club-class amenities.",
+  "Spacious 3-side open apartments designed for optimal sunlight, ventilation, and Vastu compliance.",
+  "Provides up to 4 allotted car parking spaces per residence across a 3-level basement layout.",
+  "Wind tunnel tested structure by RWDI, integrated with 5 high-speed, spacious elevators per block and access-controlled lobbies."
+ ],
+ "amenities": [
+  "Swimming pool, splash pool, and dedicated deck area.",
+  "Tennis/pickleball court, box cricket, and indoor sports area.",
+  "Fully-equipped gymnasium, yoga/pilates studio, and walking track.",
+  "Two mini-theatres, virtual gaming area, and sports café.",
+  "Steam & sauna, salon, and therapy room.",
+  "Banquet hall with lawn, exclusive lounge, and terrace garden.",
+  "Toddler area, kids' play zone with rock-climbing wall, and day care space.",
+  "Car wash area, driver's lounge, and EV car charging provision in the common basement."
+ ],
+ "target_audience": "Affluent families, business owners, and senior executives seeking ultra-luxury, high-rise 4 & 5 BHK residences in the prime commercial and lifestyle hub of Ahmedabad (S.G. Highway / Sindhu Bhavan Road).",
+ "contact": {
+  "phone": "079 4897 6016",
+  "email": "contact@consterarealty.com",
+  "website": "www.consterarealty.com"
+ },
+ "cta": null,
+ "tagline": "A Symphony of Luxury, Lifestyle & Iconic Location Unveiled",
+ "possession": "June 2030",
+ "rera_number": null,
+ "project_size": "31 Storeys, 5 Blocks (A, B, C, D, E)",
+ "landmarks": [
+  {
+   "name": "Apex Heart Institute",
+   "distance": "650 Mtr",
+   "category": "healthcare"
+  },
+  {
+   "name": "Pakwan Circle / SBR",
+   "distance": "700 Mtr",
+   "category": "landmark"
+  },
+  {
+   "name": "Acropolis Mall / PVR",
+   "distance": "1.0 Km",
+   "category": "shopping & entertainment"
+  },
+  {
+   "name": "Rajpath Club",
+   "distance": "1.1 Km",
+   "category": "lifestyle club"
+  },
+  {
+   "name": "Thaltej Metro Station",
+   "distance": "1.1 Km",
+   "category": "metro station"
+  },
+  {
+   "name": "Nirma Vidyavihar",
+   "distance": "1.4 Km",
+   "category": "school"
+  },
+  {
+   "name": "Iscon Mall",
+   "distance": "2.0 Km",
+   "category": "shopping mall"
+  },
+  {
+   "name": "Zydus Hospital",
+   "distance": "2.3 Km",
+   "category": "healthcare"
+  },
+  {
+   "name": "Ahmedabad One Mall",
+   "distance": "2.6 Km",
+   "category": "shopping mall"
+  },
+  {
+   "name": "Karnavati Club",
+   "distance": "3.4 Km",
+   "category": "lifestyle club"
+  },
+  {
+   "name": "Taj Skyline",
+   "distance": "3.7 Km",
+   "category": "hotel"
+  },
+  {
+   "name": "SP Ring Road",
+   "distance": "4.1 Km",
+   "category": "highway"
+  },
+  {
+   "name": "Airport",
+   "distance": "16.2 Km",
+   "category": "airport"
+  }
+ ],
+ "description": null,
+ "brand_color": null
+}

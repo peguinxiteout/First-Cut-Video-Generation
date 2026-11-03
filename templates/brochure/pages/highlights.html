@@ -1,0 +1,11 @@
+{# WHY BUY HERE — each selling point as a headline and one line of detail. #}
+{{ m.images(page) }}
+{% if page.boxes.get('head') %}
+  {% call m.box(page, 'head') %}{{ m.head(page.words) }}{% endcall %}
+  {% call m.box(page, 'text') %}{{ m.cards(page.words.cards, numbered=book.category != 'affordable') }}{% endcall %}
+{% else %}
+  {% call m.box(page, 'text') %}
+    <div class="col-head">{{ m.head(page.words) }}</div>
+    {{ m.cards(page.words.cards, numbered=book.category != 'affordable') }}
+  {% endcall %}
+{% endif %}

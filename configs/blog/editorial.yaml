@@ -1,0 +1,233 @@
+# Editorial lexicon for the blog pipeline.
+#
+# Every list here is DATA the normaliser, validator, composer and rubric
+# read. Nothing in this file is about one particular article: it encodes
+# the recurring failure modes found when generated posts were compared
+# with strong human/ChatGPT posts (generic copy, stock AI phrasing,
+# placeholder links, sales language, irrelevant geography), so fixing a
+# new pattern is an edit here rather than a code change.
+
+# Stock phrasing. value = replacement; null = drop the whole sentence
+# (the phrase carries no meaning worth rescuing).
+stock_phrases:
+  "in today's fast-paced world, ": ""
+  "in today's fast-paced world": ""
+  "in conclusion, ": ""
+  "in conclusion": ""
+  "look no further": null
+  "elevate your lifestyle": null
+  "nestled amidst": "set among"
+  "nestled among": "set among"
+  "nestled in": "set in"
+  "nestled": "located"
+  "boasts": "has"
+  "seamlessly": ""
+  "a testament to": "evidence of"
+  "let's dive into": "let's look at"
+  "dive into": "look at"
+  "delve into": "look at"
+  "game-changer": "significant change"
+  "game changer": "significant change"
+  "a haven for": "well suited to"
+  "a haven": "a good fit"
+  "the perfect blend": "a balance"
+  "unlock the potential": "make the most"
+  "when it comes to": "for"
+  "it is worth noting that ": ""
+  "it's worth noting that ": ""
+
+# Sales language. Counted by the rubric (marketing effectiveness), never
+# silently rewritten: a writer told "too promotional" with the phrases
+# named fixes it better than a find-and-replace would.
+promotional_terms:
+  - world-class
+  - best-in-class
+  - unmatched
+  - unparalleled
+  - luxurious lifestyle
+  - dream home
+  - once-in-a-lifetime
+  - hurry
+  - limited period
+  - don't miss
+  - exclusive offer
+  - iconic
+  - state-of-the-art
+  - ultra-modern
+  - golden opportunity
+  - skyrocket
+  - sky-rocket
+  - must-buy
+  - best investment
+  - book now
+
+# Claims that are a compliance problem, not just a tone problem: promising
+# returns is exactly what a property advertisement may not do.
+prohibited_claims:
+  - guaranteed returns
+  - assured returns
+  - guaranteed appreciation
+  - zero risk
+  - risk-free investment
+  - prices will double
+
+# Placeholder detection. Regexes, case-insensitive.
+placeholder_patterns:
+  - '\bexample\.(?:com|org|net|in)\b'
+  - '\byour[-_ ]?(?:website|domain|site|company|brand)\b(?:\.\w+)?'
+  - '\b(?:website|domain|yoursite|mysite)\.com\b'
+  - 'https?://\.\.\.'
+  - 'https?://(?:www\.)?xxx'
+  - '\[(?:link|url|website|insert[^\]]*|your[^\]]*|name|phone|email|company|address|contact[^\]]*)\]'
+  - '\((?:link|url)\)'
+  - '\{\{[^}]*\}\}'
+  - '<\s*(?:insert|link|url|phone|email)[^>]*>'
+  - '\blorem ipsum\b'
+  - '\bX{3,}\b'
+  - '\bx{4,}\b'
+  - '\b\d{2}X{4,}\b'
+  - '\+?\d{0,3}[- ]?X{3,}[- X]*'
+  - '\b(?:123[- ]?456[- ]?7890|000[- ]?000[- ]?0000)\b'
+  - '\b(?:info|sales|contact|hello)@(?:example|yourcompany|company|domain)\.\w+'
+  - '\bplaceholder\b'
+
+# Headings that say nothing. A heading equal to one of these (or to a
+# bare catalogue label) is reported as generic.
+generic_headings:
+  - introduction
+  - overview
+  - conclusion
+  - summary
+  - location analysis
+  - amenities
+  - strengths
+  - weaknesses
+  - pros and cons
+  - pros & cons
+  - investment perspective
+  - market perspective
+  - lifestyle perspective
+  - pricing & value
+  - future potential
+  - buyer considerations
+  - final thoughts
+  - key takeaways
+  - in closing
+  - background
+
+# Domains treated as authoritative primary sources when research finds
+# them (substring match on the host).
+authority_domains:
+  - .gov.in
+  - .nic.in
+  - .gov
+  - rera
+  - metrorail
+  - metro-rail
+  - municipal
+  - mcgm
+  - bbmp
+  - amc.gov
+  - rbi.org.in
+  - nhb.org.in
+  - who.int
+  - censusindia
+
+# Property listing portals and brokers. Not cited as sources: they are
+# competitors' marketing, and citing them sends readers away.
+competitor_domains:
+  - 99acres
+  - magicbricks
+  - housing.com
+  - nobroker
+  - squareyards
+  - commonfloor
+  - makaan
+  - proptiger
+  - nestaway
+  - quikr
+
+# India-specific signals: if any appear in the brief, the post is written
+# for an Indian reader (RERA, lakh/crore, carpet area).
+india_markers: ["india", "₹", "inr", "rs.", "lakh", "crore", "rera", "bhk", "gujarat",
+                "maharashtra", "karnataka", "uttar pradesh", "haryana", "telangana",
+                "tamil nadu", "kerala"]
+
+# City -> state. Used to name the right regulator, and to notice a post
+# wandering into a city the brief never mentioned.
+cities:
+  ahmedabad: Gujarat
+  gandhinagar: Gujarat
+  surat: Gujarat
+  vadodara: Gujarat
+  rajkot: Gujarat
+  mumbai: Maharashtra
+  navi mumbai: Maharashtra
+  thane: Maharashtra
+  pune: Maharashtra
+  nagpur: Maharashtra
+  nashik: Maharashtra
+  bengaluru: Karnataka
+  bangalore: Karnataka
+  mysuru: Karnataka
+  mangaluru: Karnataka
+  noida: Uttar Pradesh
+  greater noida: Uttar Pradesh
+  ghaziabad: Uttar Pradesh
+  lucknow: Uttar Pradesh
+  gurugram: Haryana
+  gurgaon: Haryana
+  faridabad: Haryana
+  hyderabad: Telangana
+  chennai: Tamil Nadu
+  coimbatore: Tamil Nadu
+  kolkata: West Bengal
+  delhi: Delhi
+  new delhi: Delhi
+  jaipur: Rajasthan
+  kochi: Kerala
+  thiruvananthapuram: Kerala
+  indore: Madhya Pradesh
+  bhopal: Madhya Pradesh
+  chandigarh: Chandigarh
+  bhubaneswar: Odisha
+  visakhapatnam: Andhra Pradesh
+  goa: Goa
+  dubai: ""
+  london: ""
+  singapore: ""
+
+# State real-estate regulators. A URL is listed ONLY where it is the
+# regulator's long-standing official address; otherwise the post names
+# the regulator and links nothing (an invented URL is worse than none).
+rera_portals:
+  Gujarat: {name: "GujRERA", url: "https://gujrera.gujarat.gov.in"}
+  Maharashtra: {name: "MahaRERA", url: "https://maharera.maharashtra.gov.in"}
+  Karnataka: {name: "Karnataka RERA", url: "https://rera.karnataka.gov.in"}
+  Uttar Pradesh: {name: "UP RERA", url: "https://www.up-rera.in"}
+  Haryana: {name: "Haryana RERA (HRERA)", url: "https://haryanarera.gov.in"}
+
+# Fact categories, checked in this order (first match wins), so "Metro
+# Phase 2 under construction" is infrastructure, not connectivity.
+fact_categories:
+  legal: ['\brera\b', 'registration', 'registered', 'occupancy certificate', '\boc\b',
+          'commencement certificate', 'encumbrance', 'title deed', 'stamp duty', 'approved plan',
+          'approval', '\bkhata\b', 'mutation', '\blaw\b', '\bact\b', 'regulat']
+  # Infrastructure means CHANGE: announced, approved or being built. An
+  # expressway that already exists is connectivity.
+  infrastructure: ['under construction', 'proposed', 'upcoming', 'planned', '\bphase\b',
+                   'extension', 'sanctioned', 'expected to', 'will (?:open|connect|link)',
+                   'being built', 'announced', 'tender']
+  price: ['₹', '\brs\.?\s?\d', '\binr\b', '\blakh', '\bcrore', '\bprice', '\bpriced', '\bcost',
+          'per sq', 'psf', '\bemi\b', 'listed at', 'starting at', 'budget']
+  market: ['rental', '\brent\b', 'yield', 'appreciat', 'demand', 'supply', 'absorption',
+           'inventory', '\d\s?%', 'per cent', 'percent', 'growth', 'sales']
+  project: ['\bbhk\b', 'carpet area', 'built-up', '\btowers?\b', '\bacres?\b', '\bunits\b',
+            'possession', '\bfloors\b', 'storey', 'launch', 'developer', 'amenit', 'clubhouse']
+  employment: ['tech park', '\bit park', '\bsez\b', 'business district', 'office', 'employ', '\bjobs\b',
+               'tech corridor', 'industrial', 'headquarter']
+  social: ['school', 'college', 'universit', 'hospital', 'clinic', 'healthcare']
+  amenity: ['\bmall', '\bpark\b', '\blake\b', 'garden', '\bclub\b', '\bgym\b', '\bpool\b',
+            'market', 'supermarket', 'restaurant', 'temple', 'shopping']
+  connectivity: ['\bkm\b', '\bmin(?:ute)?s?\b', 'metro', 'airport', 'railway', 'station',
+                 'highway', 'ring road', '\broad\b', '\bbus\b', 'drive', 'commute', 'connect']

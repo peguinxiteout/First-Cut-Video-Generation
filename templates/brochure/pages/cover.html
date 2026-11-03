@@ -1,0 +1,48 @@
+{# THE COVER — the strongest view of the building, the name, and what the
+   category leads with: the price and the homes (Affordable), the homes and
+   the place (Mid-Tier), the name and the place alone (Luxury). #}
+{% set d = page.data %}
+{{ m.images(page) }}
+<div class="scrim" aria-hidden="true"></div>
+{% if book.category == 'affordable' %}
+  <div class="cover-tab">{{ m.logo('cover-logo') }}</div>
+  {% if d.price %}<div class="price-badge"><span class="pb-label">Starting at</span><span class="pb-value num keep">{{ d.price }}<sup>*</sup></span></div>{% endif %}
+{% elif book.category == 'luxury' %}
+  <div class="cover-logo-top">{{ m.logo('cover-logo', dark=True) }}</div>
+{% endif %}
+{% call m.box(page, 'text') %}
+  {% if book.category == 'affordable' %}
+    <div class="cv-main">
+      {% if page.words.kicker %}<div class="kicker">{{ page.words.kicker }}</div>{% endif %}
+      <h1 class="display">{{ page.words.title }}</h1>
+      {% if page.words.note %}<div class="hashtag">{{ page.words.note }}</div>{% endif %}
+    </div>
+    <div class="cv-side">
+      <div class="chips">
+        {% if d.config_line %}<span class="chip strong keep">{{ d.config_line }}</span>{% endif %}
+        {% for f in d.figures %}<span class="chip keep">{{ f.value }} {{ f.unit }}</span>{% endfor %}
+      </div>
+      {% if page.words.lead %}<p class="cv-lead">{{ page.words.lead }}</p>{% endif %}
+      {% if d.price %}<p class="cv-foot">*Starting price as supplied by the developer.{% if content.rera %} RERA No. {{ content.rera }}{% endif %}</p>{% endif %}
+    </div>
+  {% elif book.category == 'mid' %}
+    <div class="cv-main">
+      <h1 class="display">{{ page.words.title }}</h1>
+      {% if page.words.lead %}<p class="cv-lead">{{ page.words.lead }}</p>{% endif %}
+    </div>
+    <div class="cv-side">
+      {% if d.config_line %}<div class="cv-fact"><span class="lbl">Residences</span><span class="keep">{{ d.config }}</span></div>{% endif %}
+      {% if page.words.kicker %}<div class="cv-fact"><span class="lbl">Location</span><span>{{ page.words.kicker }}</span></div>{% endif %}
+      {% if d.price %}<div class="cv-fact"><span class="lbl">Starting</span><span class="num keep">{{ d.price }} onwards</span></div>{% endif %}
+    </div>
+    <div class="cv-logo">{{ m.logo('cover-logo') }}</div>
+  {% else %}
+    <div class="cv-main">
+      {% if page.words.kicker %}<div class="kicker">{{ page.words.kicker }}</div>{% endif %}
+      <h1 class="display">{{ page.words.title }}</h1>
+      {{ m.ornament() }}
+      {% if page.words.lead %}<p class="cv-lead">{{ page.words.lead }}</p>{% endif %}
+      {% if d.config_line %}<p class="cv-config keep">{{ d.config_line }}</p>{% endif %}
+    </div>
+  {% endif %}
+{% endcall %}

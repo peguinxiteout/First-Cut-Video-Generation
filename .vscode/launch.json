@@ -1,0 +1,140 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Preflight: is this machine demo-ready?",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/preflight.py",
+      "justMyCode": true
+    },
+    {
+      "name": "Streamlit: Brochure UI",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "streamlit",
+      "args": [
+        "run",
+        "streamlit_app.py"
+      ],
+      "justMyCode": true
+    },
+    {
+      "name": "Bench: all six templates for a property (offline)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/bench_brochure.py",
+      "args": [
+        "${input:propertyDir}",
+        "--all"
+      ],
+      "justMyCode": true
+    },
+    {
+      "name": "FastAPI: dev server",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "src.api.main:app",
+        "--reload"
+      ],
+      "justMyCode": true
+    },
+    {
+      "name": "CLI: generate_brochure.py (asks for a property id and a template)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/generate_brochure.py",
+      "args": [
+        "--property-id",
+        "${input:propertyId}",
+        "--template",
+        "${input:template}"
+      ],
+      "justMyCode": true
+    },
+    {
+      "name": "CLI: generate_blog.py (asks for a blog id)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/generate_blog.py",
+      "args": [
+        "--blog-id",
+        "${input:blogId}"
+      ],
+      "justMyCode": true
+    },
+    {
+      "name": "Pytest: all tests",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": [
+        "-q"
+      ],
+      "justMyCode": true
+    },
+    {
+      "name": "Image generation: smoke test (live, uses HF_TOKEN)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/test_image_generation.py",
+      "args": [],
+      "justMyCode": true
+    },
+    {
+      "name": "Image generation: smoke test (offline mock)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/test_image_generation.py",
+      "args": [
+        "--mock"
+      ],
+      "justMyCode": true
+    },
+    {
+      "name": "Image generation: try SDXL only",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/test_image_generation.py",
+      "args": [
+        "--model",
+        "stabilityai/stable-diffusion-xl-base-1.0"
+      ],
+      "justMyCode": true
+    }
+  ],
+  "inputs": [
+    {
+      "id": "propertyId",
+      "type": "promptString",
+      "description": "Property id (a folder under data/properties/, e.g. created by the UI)"
+    },
+    {
+      "id": "blogId",
+      "type": "promptString",
+      "description": "Blog id (a folder under data/blogs/, created by scripts/ingest_blog.py)"
+    },
+    {
+      "id": "template",
+      "type": "pickString",
+      "description": "Template",
+      "options": [
+        "Affordable - Landscape",
+        "Affordable - Portrait",
+        "Mid-Tier - Landscape",
+        "Mid-Tier - Portrait",
+        "Luxury - Landscape",
+        "Luxury - Portrait"
+      ],
+      "default": "Luxury - Landscape"
+    },
+    {
+      "id": "propertyDir",
+      "type": "promptString",
+      "description": "Property folder",
+      "default": "data/properties/e128"
+    }
+  ]
+}

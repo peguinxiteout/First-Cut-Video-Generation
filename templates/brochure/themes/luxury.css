@@ -1,0 +1,103 @@
+/* =========================================================================
+   LUXURY — exclusive, editorial, timeless, architecture-led.
+
+   Alabaster and limestone grounds, obsidian type, Aegean navy for
+   statement pages, champagne gold only as ornament: ultra-fine rules,
+   frames and numerals set large. Cormorant Garamond headings, Jost Light
+   body. Sharp 90° corners, generous space, restrained ornament — one
+   diamond, never a pattern.
+   ========================================================================= */
+
+.c-luxury .title { font-weight: 400; letter-spacing: 0.005em; }
+.c-luxury h1.title { font-weight: 400; }
+.c-luxury .kicker { font-weight: 500; color: var(--accent-text); letter-spacing: var(--track-kicker); }
+.c-luxury .rule { width: 16mm; height: 0.35pt; background: var(--ornament); margin: 5.6mm 0 5.6mm; }
+.c-luxury .lead { font-family: var(--f-head); font-size: calc(var(--fs-lead) * 1.06); font-weight: 400; line-height: 1.42; color: var(--ink); }
+.c-luxury .body p { font-weight: 300; color: var(--ink-soft); }
+.c-luxury .ic { stroke-width: 1.1; }
+.c-luxury .ic-wrap { color: var(--ornament); }
+.c-luxury .orn { width: 30mm; height: 6mm; color: var(--ornament); display: block; margin: 5mm auto; }
+
+/* folio: a centred number between two gold hairlines */
+.c-luxury .folio { justify-content: center; gap: 4mm; }
+.c-luxury .folio::before, .c-luxury .folio::after { content: ""; width: 8mm; height: 0.35pt; background: var(--ornament); }
+.c-luxury .folio-n { font-family: var(--f-head); font-size: var(--fs-small); letter-spacing: 0.2em; color: var(--ink-soft); }
+
+/* photographs: a fine gold keyline on framed (non-bleed) images */
+.c-luxury .slot.image:not(.bleed-t):not(.bleed-l):not(.bleed-r):not(.bleed-b) { box-shadow: inset 0 0 0 0.35pt rgba(197,160,89,.6); }
+.c-luxury .slot.plan { background: var(--paper-alt); border-radius: 0; padding: 7mm; }
+
+/* --- cover: the photograph to the edge, the name over a navy fall-off -- */
+.c-luxury .k-cover .scrim {
+  position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(180deg, rgba(27,54,93,0) 38%, rgba(16,32,58,.55) 64%, rgba(12,24,44,.86) 100%);
+}
+.c-luxury .k-cover .box.text { align-items: center; justify-content: flex-end; text-align: center; padding-bottom: 4mm; }
+.c-luxury .k-cover .kicker { color: #E9DDBF; }
+.c-luxury .k-cover .display {
+  color: #FDFBF7; font-weight: 400; letter-spacing: 0.1em; text-transform: uppercase; line-height: 1.02;
+}
+.c-luxury .k-cover .cv-lead { font-family: var(--f-head); font-style: italic; font-size: var(--fs-h2); color: #F2E8D0; }
+.c-luxury .k-cover .cv-config { margin-top: 3mm; font-size: var(--fs-kicker); letter-spacing: 0.3em; text-transform: uppercase; color: #E9DDBF; }
+.c-luxury .cover-logo-top { position: absolute; top: calc(var(--m-top) * 0.6); left: 0; right: 0; display: flex; justify-content: center; }
+.c-luxury .cover-logo-top .cover-logo { height: 20mm; width: 20mm; }
+.c-luxury .cover-logo-top .cover-logo img { width: 100%; height: 100%; object-fit: contain; }
+
+/* --- overview: type in generous space ----------------------------------- */
+.c-luxury .k-overview .box.text { justify-content: flex-start; }
+.c-luxury .figures.foot { border-top: 0.35pt solid var(--ornament); gap: 7mm; }
+.c-luxury .figures dt { font-weight: 400; color: var(--support); }
+.c-luxury .figures dd { letter-spacing: 0.24em; font-weight: 400; }
+.c-luxury .points li { padding: 2.2mm 0; border-bottom: 0.35pt solid rgba(197,160,89,.5); }
+
+/* --- distinctions: an editorial list with gold numerals -------------------- */
+.c-luxury .cards { grid-template-columns: 1fr; gap: 0; }
+.c-luxury .cards.n4, .c-luxury .cards.n5, .c-luxury .cards.n6 { grid-template-columns: 1fr 1fr; column-gap: 9mm; }
+.o-digital.c-luxury .cards.n5, .o-digital.c-luxury .cards.n6 { grid-template-columns: 1fr 1fr; }
+.o-digital.c-luxury .k-highlights .card { padding: 2.6mm 0; }
+.c-luxury .card { padding: 3.6mm 0; border-top: 0.35pt solid rgba(197,160,89,.7); gap: 4.5mm; }
+.c-luxury .card .num-mark { font-style: italic; font-size: var(--fs-h1); color: var(--ornament); min-width: 9mm; line-height: 0.9; }
+.c-luxury .card h3 { font-weight: 500; font-size: var(--fs-h3); line-height: 1.22; }
+.c-luxury .card p { font-weight: 300; }
+.c-luxury .card-fig { font-weight: 400; font-size: var(--fs-h2); color: var(--support); letter-spacing: 0.02em; }
+
+/* --- amenities: zones in columns, gold hairlines ------------------------------ */
+.c-luxury .zones { --zone-cols: 3; column-rule: 0.35pt solid rgba(197,160,89,.5); }
+.o-portrait.c-luxury .zones { --zone-cols: 2; }
+.c-luxury .zone h3 { font-family: var(--f-head); text-transform: none; letter-spacing: 0.02em; font-size: var(--fs-h3); font-weight: 500; }
+.c-luxury .zone h3 .ic { color: var(--ornament); }
+.c-luxury .zone li { font-weight: 300; }
+.c-luxury .zone li::before { background: var(--ornament); }
+
+/* --- residences: a quiet schedule ---------------------------------------- */
+.c-luxury table.units th { border-bottom: 0.35pt solid var(--ornament); font-weight: 500; letter-spacing: 0.2em; }
+.c-luxury table.units td { padding: 3.6mm 0; border-bottom-width: 0.35pt; }
+.c-luxury table.units .u-name { font-weight: 500; font-size: calc(var(--fs-h3) * 1.05); }
+.c-luxury table.units td.num { font-weight: 300; }
+
+/* --- location -------------------------------------------------------------- */
+.c-luxury .places li { border-bottom: 0.35pt solid rgba(197,160,89,.55); font-weight: 300; }
+.c-luxury .places .dist { color: var(--support); font-weight: 400; letter-spacing: 0.04em; }
+.c-luxury .places .ic { color: var(--ornament); }
+
+/* --- masterplan and plans: limestone ground --------------------------------- */
+.c-luxury .k-masterplan, .c-luxury .k-plans { --page-bg: var(--paper-alt); }
+.c-luxury .k-masterplan .slot.plan, .c-luxury .k-plans .slot.plan { background: var(--paper); }
+
+/* --- gallery captions ---------------------------------------------------- */
+.c-luxury .slot.image figcaption.tag { color: #fff; letter-spacing: 0.3em; font-weight: 400; }
+
+/* --- closing: navy, framed in gold ------------------------------------------ */
+.c-luxury .k-closing {
+  --page-bg: var(--dark); --ink: var(--on-dark); --ink-soft: var(--on-dark-soft);
+  --accent-text: #D9C38E; --rule: rgba(197,160,89,.45); --support-text: #D9C38E;
+}
+.c-luxury .k-closing::after {
+  content: ""; position: absolute; inset: 7mm; border: 0.35pt solid rgba(197,160,89,.8); pointer-events: none;
+}
+.c-luxury .k-closing .slot.image { z-index: 1; }
+.c-luxury .k-closing .phone { font-family: var(--f-head); font-weight: 400; font-size: calc(var(--fs-h2) * 1.45); letter-spacing: 0.02em; }
+.c-luxury .k-closing .ic { color: var(--ornament); }
+.c-luxury .closing-logo { display: inline-flex; height: 20mm; width: 20mm; margin-bottom: 9mm; }
+.c-luxury .closing-logo img { width: 100%; height: 100%; object-fit: contain; }
+.c-luxury .k-closing .qr img { background: #FDFBF7; }

@@ -1,0 +1,6 @@
+{# INTERIORS — rooms as a mosaic, a short column of copy. #}
+{{ m.images(page, captions=True) }}
+{% call m.box(page, 'text') %}
+  <div class="col-head">{{ m.head(page.words) }}</div>
+  <div class="col-body">{{ m.body(page.words) }}</div>
+{% endcall %}

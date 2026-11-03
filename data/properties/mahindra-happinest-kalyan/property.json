@@ -1,0 +1,90 @@
+{
+ "property_id": "MAHINDRA-HAPPINEST-KALYAN",
+ "name": "Mahindra Happinest Kalyan",
+ "developer": "Mahindra Lifespace Developers Ltd",
+ "location": {
+  "city": "Mumbai Metropolitan Region",
+  "area": "Kalyan",
+  "address": null
+ },
+ "property_type": "Apartments",
+ "category": "affordable",
+ "price": "₹29.95 Lakh",
+ "unit_types": [
+  {
+   "name": "1 BHK-A",
+   "carpet_area": "334.76 sq.ft",
+   "price": "₹29.95 Lakh – ₹31.15 Lakh"
+  },
+  {
+   "name": "1 BHK-B",
+   "carpet_area": "378.03 sq.ft",
+   "price": "₹34.50 Lakh – ₹35.90 Lakh"
+  },
+  {
+   "name": "2 BHK-A",
+   "carpet_area": "495.04 sq.ft",
+   "price": "₹46.45 Lakh – ₹49.85 Lakh"
+  },
+  {
+   "name": "2 BHK-B",
+   "carpet_area": "547.46 sq.ft",
+   "price": "₹51.90 Lakh – ₹55.70 Lakh"
+  }
+ ],
+ "usps": [
+  "Located on the Bhiwandi-Kalyan Corridor near the proposed Rajnouli Metro Station (Line 5).",
+  "Pre-certified IGBC Gold project ensuring 45% water savings and 70% common area solar power.",
+  "Zero-wastage layout with piped gas provision saving 7 sq.ft of carpet area.",
+  "Multiplier Rebate Plan (MRP) offering assured early registration savings of ₹50,000+.",
+  "PMAY subsidy benefits up to ₹2.67 Lakh for eligible buyers."
+ ],
+ "amenities": [
+  "Landscaped gardens featuring 1,200+ trees, fragrance garden, and picnic lawn.",
+  "Jogging track, cycling track, outdoor gym, and reflexology path.",
+  "Two cricket nets, multipurpose courts, badminton, and kabaddi courts.",
+  "Clubhouse with multi-purpose hall, indoor games, gym, and terrace lounge.",
+  "Primary health center by Apollo Clinic and daycare by Eager Beavers.",
+  "24-hour security, CCTV monitoring, and automated boom barriers."
+ ],
+ "target_audience": "Landscaped gardens featuring 1,200+ trees, fragrance garden, and picnic lawn.    Jogging track, cycling track, outdoor gym, and reflexology path.    Two cricket nets, multipurpose courts, badminton, and kabaddi courts.    Clubhouse with multi-purpose hall, indoor games, gym, and terrace lounge.    Primary health center by Apollo Clinic and daycare by Eager Beavers.    24-hour security, CCTV monitoring, and automated boom barriers.",
+ "contact": {
+  "phone": "+91 91376 11940",
+  "email": null,
+  "website": null
+ },
+ "cta": "Register online and get assured savings of ₹50,000 and more",
+ "tagline": "#LiveSmileProsper",
+ "possession": null,
+ "rera_number": "P51700022981",
+ "project_size": "9 Acres",
+ "landmarks": [
+  {
+   "name": "Rajnouli Metro Station",
+   "distance": "~500 m (2 min)",
+   "category": "metro station"
+  },
+  {
+   "name": "VITS Upper Thane",
+   "distance": "~1 km",
+   "category": "hotel"
+  },
+  {
+   "name": "Ved Hospital",
+   "distance": "~3.5 km",
+   "category": "hospital"
+  },
+  {
+   "name": "St. Lawrence International School",
+   "distance": "~3-4 km",
+   "category": "school"
+  },
+  {
+   "name": "DMart",
+   "distance": "~4 km",
+   "category": "supermarket"
+  }
+ ],
+ "description": null,
+ "brand_color": null
+}

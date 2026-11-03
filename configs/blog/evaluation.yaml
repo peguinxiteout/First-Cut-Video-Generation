@@ -1,0 +1,63 @@
+# Blog evaluation rubric (src/evaluation/blog_rubric.py).
+#
+# Five parameters, each scored 0-100 with a one-line reason. The overall
+# blog score is the WEIGHTED sum of the five (weights sum to 1.0). Each
+# score comes from deterministic measurements of the post and, when a model
+# is reachable, is blended with the LLM critic's score for the same
+# parameter. The critic prompt, the scoring and the UI all read the names,
+# labels, weights and descriptions below, so they cannot drift apart.
+# A parameter below its threshold sends specific feedback to the writer.
+
+dimensions:
+  content_quality:
+    label: Content quality
+    weight: 0.30
+    threshold: 75
+    description: depth, accuracy and usefulness — specific, verified facts, no invented figures, practical guidance
+  relevance:
+    label: Relevance
+    weight: 0.20
+    threshold: 75
+    description: answers the brief — every requested section, the supplied facts, the location and the audience
+  structure_readability:
+    label: Structure & readability
+    weight: 0.20
+    threshold: 72
+    description: clear headings and flow, an intro and a decisive conclusion, short paragraphs and sentences
+  engagement:
+    label: Audience engagement
+    weight: 0.15
+    threshold: 65
+    description: a strong hook, speaks to the reader, honest rather than salesy, a natural call to action
+  seo:
+    label: SEO optimisation
+    weight: 0.15
+    threshold: 70
+    description: keyword in title, intro, a heading and meta; no stuffing; good meta title, description and slug
+
+# Share of a dimension's score taken from the LLM critic when it answered.
+# Deterministic measurements keep the majority: they are reproducible and
+# cannot be talked round by fluent prose.
+llm_blend: 0.4
+
+gate:
+  pass_score: 78          # overall score needed to PASS without revision
+  max_revisions: 2        # bounded revision rounds
+  min_improvement: 0.5    # a revision must beat the best draft by this much to replace it
+
+limits:
+  paragraph_max_words: 70
+  paragraph_max_sentences: 4
+  sentence_target_words: 20
+  sentence_long_words: 30
+  keyword_density_max: 2.5     # percent of words taken by the primary keyword
+  bold_max_per_paragraph: 1
+  bold_word_share_max: 0.03
+  meta_title_min: 30
+  meta_title_max: 60
+  meta_description_min: 110
+  meta_description_max: 160
+  min_sections: 4
+  max_sections: 10
+  heading_max_words: 12
+  brand_mentions_max: 4

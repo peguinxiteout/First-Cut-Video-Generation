@@ -1,0 +1,28 @@
+{# THE RESIDENCES — the unit schedule, prices where the category prints
+   them, and (Affordable) the payment benefits beside them. #}
+{% set d = page.data %}
+{% set priced = d.units | selectattr('price') | list | length > 0 %}
+{{ m.images(page) }}
+{% if page.variant == 'plans' %}
+  {% call m.box(page, 'text') %}
+    <div class="col-head">{{ m.head(page.words) }}</div>
+    <div class="col-body">
+      {{ m.units(d.units, priced) }}
+      {% if page.words.cards %}{{ m.cards(page.words.cards) }}{% endif %}
+    </div>
+    {% if page.words.note %}<p class="note foot-note">{{ page.words.note }} Plans are indicative and not to scale.</p>{% endif %}
+  {% endcall %}
+{% elif page.boxes.get('head') %}
+  {% call m.box(page, 'head') %}{{ m.head(page.words) }}{% if page.words.cards %}{{ m.cards(page.words.cards) }}{% endif %}{% endcall %}
+  {% call m.box(page, 'text') %}{{ m.units(d.units, priced) }}{% if page.words.note %}<p class="note">{{ page.words.note }}</p>{% endif %}{{ m.figures(d.summary, 'foot') }}{% endcall %}
+{% else %}
+  {% call m.box(page, 'text') %}
+    <div class="col-head">{{ m.head(page.words) }}</div>
+    <div class="col-body">
+      {{ m.units(d.units, priced) }}
+      {% if page.words.cards %}{{ m.cards(page.words.cards) }}{% endif %}
+      {% if page.words.note %}<p class="note">{{ page.words.note }}</p>{% endif %}
+    </div>
+    {{ m.figures(d.summary, 'foot') }}
+  {% endcall %}
+{% endif %}

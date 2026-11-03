@@ -1,0 +1,58 @@
+# First Cut — Streamlit theme.
+# White-first, with violet and blue accents; fonts are served from ./static
+# (bundled, SIL Open Font License) so the UI looks the same offline.
+
+[server]
+enableStaticServing = true
+
+[theme]
+base = "light"
+primaryColor = "#5B33F0"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F6F4FE"
+textColor = "#1C1733"
+linkColor = "#4F46E5"
+borderColor = "#E6E1F7"
+showWidgetBorder = true
+baseRadius = "0.7rem"
+buttonRadius = "0.75rem"
+font = "Inter, 'Segoe UI', sans-serif"
+headingFont = "'Plus Jakarta Sans', Inter, sans-serif"
+headingFontWeights = [800, 700, 700, 650, 600, 600]
+violetColor = "#5B33F0"
+blueColor = "#2F74FF"
+
+[[theme.fontFaces]]
+family = "Inter"
+url = "app/static/fonts/inter-latin-400-normal.woff2"
+weight = 400
+
+[[theme.fontFaces]]
+family = "Inter"
+url = "app/static/fonts/inter-latin-500-normal.woff2"
+weight = 500
+
+[[theme.fontFaces]]
+family = "Inter"
+url = "app/static/fonts/inter-latin-600-normal.woff2"
+weight = 600
+
+[[theme.fontFaces]]
+family = "Inter"
+url = "app/static/fonts/inter-latin-700-normal.woff2"
+weight = 700
+
+[[theme.fontFaces]]
+family = "Plus Jakarta Sans"
+url = "app/static/fonts/plus-jakarta-sans-latin-600-normal.woff2"
+weight = 600
+
+[[theme.fontFaces]]
+family = "Plus Jakarta Sans"
+url = "app/static/fonts/plus-jakarta-sans-latin-700-normal.woff2"
+weight = 700
+
+[[theme.fontFaces]]
+family = "Plus Jakarta Sans"
+url = "app/static/fonts/plus-jakarta-sans-latin-800-normal.woff2"
+weight = 800

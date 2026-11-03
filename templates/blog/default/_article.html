@@ -1,0 +1,134 @@
+{# The article itself, shared by the web preview (base.html) and the PDF
+   (print.html), so the two can never drift apart. Laid out like a
+   published web article: site bar, headline block, hero, lede, key
+   takeaways, contents, sections, FAQ, verdict, call to action, sources,
+   topic tags. #}
+<header class="site-bar">
+  <div class="site-name">{{ site_name }}</div>
+  <div class="site-section">Real estate insights</div>
+</header>
+
+<header class="headline">
+  <div class="crumbs">
+    <span class="crumb-type">{{ archetype_label }}</span>
+    {% if content.tags %}<span class="crumb-sep">/</span><span>{{ content.tags[0] }}</span>{% endif %}
+  </div>
+  <h1{% if content.title|length > 72 %} class="h1--long"{% endif %}>{{ content.title }}</h1>
+  {% if content.meta_description %}<p class="dek">{{ content.meta_description }}</p>{% endif %}
+  <div class="byline">
+    <span class="avatar">{{ author_initials }}</span>
+    <span class="byline-text">
+      <span class="by">By <strong>{{ author }}</strong></span>
+      <span class="meta">{% if published_on %}{{ published_on }} · {% endif %}{{ reading_minutes }} min read</span>
+    </span>
+  </div>
+</header>
+
+{% if cover_image_uri %}
+<figure class="hero figure">
+  <img src="{{ cover_image_uri }}" alt="{{ content.hero_caption or content.title }}">
+  {% if content.hero_is_ai_generated or content.hero_caption %}
+  <figcaption>{% if content.hero_caption %}{{ content.hero_caption }}{% if content.hero_is_ai_generated %} — {% endif %}{% endif %}{% if content.hero_is_ai_generated %}<span class="ai-label">{{ ai_label }}</span>{% endif %}</figcaption>
+  {% endif %}
+</figure>
+{% endif %}
+
+<article class="article">
+  {% if intro_html %}<div class="prose lede">{{ intro_html | safe }}</div>{% endif %}
+
+  {% if content.key_takeaways %}
+  <aside class="takeaways">
+    <div class="box-label">Key takeaways</div>
+    <ul>{% for t in content.key_takeaways %}<li>{{ t }}</li>{% endfor %}</ul>
+  </aside>
+  {% endif %}
+
+  {% if show_toc %}
+  <nav class="toc">
+    <div class="box-label">In this article</div>
+    <ol>
+      {% for section in sections_html %}<li>{{ section.heading }}</li>{% endfor %}
+      {% if faqs %}<li>Frequently asked questions</li>{% endif %}
+      {% if conclusion_html %}<li>{{ content.conclusion_heading or "The verdict" }}</li>{% endif %}
+    </ol>
+  </nav>
+  {% endif %}
+
+  {% for section in sections_html %}
+  <section class="chapter chapter--{{ section.format }}{{ ' break-before' if section.break_before }}" id="{{ section.anchor }}">
+    <div class="keep keep--head">
+      <h2>{{ section.heading }}</h2>
+      {% if section.image_uri %}
+      <figure class="figure section-figure"><img src="{{ section.image_uri }}" alt="{{ section.heading }}"></figure>
+      {% endif %}
+      <div class="prose">{{ section.lead_html | safe }}</div>
+    </div>
+    {% if section.rest_html %}<div class="prose">{{ section.rest_html | safe }}</div>{% endif %}
+  </section>
+  {% endfor %}
+
+  {% if faqs %}
+  <section class="chapter faq">
+    <h2>Frequently asked questions</h2>
+    {% for faq in faqs %}
+    <div class="qa">
+      <h3>{{ faq.question }}</h3>
+      <div class="prose">{{ faq.answer_html | safe }}</div>
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  {% if conclusion_html %}
+  <section class="chapter verdict">
+    <div class="keep keep--head">
+      <h2>{{ content.conclusion_heading or "The verdict" }}</h2>
+      <div class="prose">{{ conclusion_html | safe }}</div>
+    </div>
+  </section>
+  {% endif %}
+
+  {% if cta_html %}
+  <aside class="cta">
+    <div class="cta-kicker">Next step</div>
+    <h3>{{ content.cta_heading or "Take the next step" }}</h3>
+    <div class="cta-body">{{ cta_html | safe }}</div>
+    {% if cta_url or cta_phone or cta_email %}
+    <div class="cta-actions">
+      {% if cta_url %}<a class="cta-button" href="{{ cta_url }}">{{ cta_url_label }}</a>{% endif %}
+      {% if cta_phone %}<a class="cta-contact" href="tel:{{ cta_phone | replace(' ', '') }}">{{ cta_phone }}</a>{% endif %}
+      {% if cta_email %}<a class="cta-contact" href="mailto:{{ cta_email }}">{{ cta_email }}</a>{% endif %}
+    </div>
+    {% endif %}
+  </aside>
+  {% endif %}
+
+  <footer class="article-end">
+  {% if content.references %}
+  <section class="sources">
+    <h2>Sources and where to verify</h2>
+    <ol>
+      {% for ref in content.references %}
+      <li>
+        <span class="src-title">{{ ref.title }}</span>
+        {% if ref.note %}<span class="src-note"> — {{ ref.note }}</span>{% endif %}
+        {% if ref.url %}<br><a class="src-url" href="{{ ref.url }}">{{ ref.url }}</a>{% endif %}
+      </li>
+      {% endfor %}
+    </ol>
+  </section>
+  {% endif %}
+
+  {% if content.tags %}
+  <div class="tags">
+    <span class="tags-label">Topics</span>
+    {% for tag in content.tags %}<span class="tag">{{ tag }}</span>{% endfor %}
+  </div>
+  {% endif %}
+
+  <p class="disclaimer">
+    {% if has_supplied_facts %}Project and local figures were supplied by {{ site_name if site_name != "Property Insights" else "the publisher" }}; measured distances and news are labelled with their sources.{% else %}Figures are labelled with their sources.{% endif %}
+    This article is general information, not legal or financial advice — verify details with the official record before you commit.
+  </p>
+  </footer>
+</article>

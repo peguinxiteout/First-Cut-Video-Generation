@@ -1,0 +1,277 @@
+/* =========================================================================
+   THE BROCHURE DESIGN SYSTEM — shared by every category.
+
+   Geometry is in millimetres and arrives from layouts.py (every slot is
+   placed absolutely on the 12-column grid). Type is in points from the
+   category's TypeScale (catalog.py). Nothing here scales type to fill a
+   box: copy is fitted by whole sentences (qa.py), never by font size.
+
+   Typesetting rules that hold everywhere:
+     * left-aligned body copy, never justified, no hyphenation
+     * `text-wrap: pretty` on paragraphs (no one-word last lines) and
+       `balance` on headings (no awkward two-line breaks)
+     * `.keep` never breaks: unit names ("1 BHK · Type A"), prices, areas,
+       distances, phone numbers
+     * tabular figures in tables, prices and statistics
+   ========================================================================= */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: #8a8a8a; }
+body {
+  font-family: var(--f-body); font-weight: var(--w-body); color: var(--ink);
+  -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+  font-kerning: normal; font-variant-ligatures: common-ligatures;
+}
+@page { margin: 0; }
+
+.sheet { position: relative; width: var(--page-w); height: var(--page-h); margin: 0 auto; }
+.page {
+  --page-bg: var(--paper);
+  position: relative; width: var(--page-w); height: var(--page-h); overflow: hidden;
+  background: var(--page-bg); color: var(--ink); break-after: page; page-break-after: always;
+}
+.crop { display: none; }
+
+/* --- bleed and crop marks: the print-ready file ------------------------- */
+/* The reading PDF is the trimmed sheet. The print PDF (html.bleed) sets each
+   page on a larger sheet with 3mm of bleed and crop marks in the slug: every
+   slot flagged as bleeding is extended past the trim on those sides, and the
+   page's own ground is extended by the same 3mm. */
+html.bleed .sheet {
+  width: calc(var(--page-w) + 2 * (var(--bleed) + var(--slug)));
+  height: calc(var(--page-h) + 2 * (var(--bleed) + var(--slug)));
+  background: #fff; break-after: page; page-break-after: always;
+}
+html.bleed .page {
+  position: absolute; left: calc(var(--bleed) + var(--slug)); top: calc(var(--bleed) + var(--slug));
+  overflow: visible; break-after: auto; page-break-after: auto;
+  box-shadow: 0 0 0 var(--bleed) var(--page-bg);
+}
+html.bleed .slot {
+  left: calc(var(--x) - var(--bl)) !important; top: calc(var(--y) - var(--bt)) !important;
+  width: calc(var(--w) + var(--bl) + var(--br)) !important; height: calc(var(--h) + var(--bt) + var(--bb)) !important;
+}
+.slot { --bt: 0mm; --br: 0mm; --bb: 0mm; --bl: 0mm; }
+.slot.bleed-t { --bt: var(--bleed); } .slot.bleed-r { --br: var(--bleed); }
+.slot.bleed-b { --bb: var(--bleed); } .slot.bleed-l { --bl: var(--bleed); }
+html.bleed .crop { display: block; position: absolute; background: #000; }
+html.bleed .crop.h { width: 6mm; height: 0.25pt; }
+html.bleed .crop.v { width: 0.25pt; height: 6mm; }
+html.bleed .crop.tl.h, html.bleed .crop.bl.h { left: 1mm; }
+html.bleed .crop.tr.h, html.bleed .crop.br.h { right: 1mm; }
+html.bleed .crop.tl.h, html.bleed .crop.tr.h { top: calc(var(--bleed) + var(--slug)); }
+html.bleed .crop.bl.h, html.bleed .crop.br.h { bottom: calc(var(--bleed) + var(--slug)); }
+html.bleed .crop.tl.v, html.bleed .crop.tr.v { top: 1mm; }
+html.bleed .crop.bl.v, html.bleed .crop.br.v { bottom: 1mm; }
+html.bleed .crop.tl.v, html.bleed .crop.bl.v { left: calc(var(--bleed) + var(--slug)); }
+html.bleed .crop.tr.v, html.bleed .crop.br.v { right: calc(var(--bleed) + var(--slug)); }
+
+/* --- slots ----------------------------------------------------------------- */
+.slot { position: absolute; overflow: hidden; left: var(--x); top: var(--y); width: var(--w); height: var(--h); }
+/* A photograph arrives cut to its slot with its bleed (brochure_renderer.
+   placed_photo): it is drawn whole, the slot clips the bleed in the reading
+   file and shows it in the print file. */
+.slot.image img {
+  position: absolute; display: block; object-fit: fill;
+  left: calc(-1 * var(--bl)); top: calc(-1 * var(--bt));
+  width: calc(100% + var(--bl) + var(--br)); height: calc(100% + var(--bt) + var(--bb));
+}
+html.bleed .slot.image img { left: 0; top: 0; width: 100%; height: 100%; }
+.slot.plan {
+  background: #fff; padding: 5mm 5mm 4mm; display: flex; flex-direction: column; border: 0.5pt solid var(--rule);
+  border-radius: var(--radius);
+}
+.slot.plan img { flex: 1 1 auto; min-height: 0; width: 100%; object-fit: contain; display: block; }
+.slot.plan figcaption {
+  flex: 0 0 auto; margin-top: 3mm; display: flex; justify-content: space-between; align-items: baseline;
+  gap: 4mm; font-size: var(--fs-small); font-weight: 500; color: var(--ink);
+}
+.slot.plan figcaption .num { color: var(--ink-soft); font-weight: 400; }
+figcaption.tag {
+  position: absolute; left: 0; bottom: 0; padding: 1.6mm 3mm; font-size: var(--fs-caption);
+  letter-spacing: 0.08em; text-transform: uppercase; color: #fff; font-weight: 500;
+  background: rgba(0, 0, 0, 0.42);
+}
+.slot.image figcaption.tag { left: 0; right: 0; background: linear-gradient(0deg, rgba(0,0,0,.55), rgba(0,0,0,0)); padding-top: 5mm; }
+
+/* --- text boxes -------------------------------------------------------- */
+.box { position: absolute; display: flex; flex-direction: column; min-height: 0; }
+.box > * { flex: 0 0 auto; }
+.col-head { margin-bottom: 0; }
+.col-body { display: flex; flex-direction: column; gap: 4mm; }
+
+.kicker {
+  font-family: var(--f-body); font-size: var(--fs-kicker); font-weight: 600; text-transform: uppercase;
+  letter-spacing: var(--track-kicker); color: var(--accent-text); margin-bottom: 3.5mm; line-height: 1.3;
+}
+.title, .display {
+  font-family: var(--f-head); font-weight: var(--w-head); color: var(--ink);
+  text-wrap: balance; overflow-wrap: normal; word-break: normal; hyphens: manual;
+}
+.display { font-size: var(--fs-display); line-height: 1.04; letter-spacing: -0.01em; }
+h1.title { font-size: var(--fs-h1); line-height: var(--lh-h1); }
+h2.title { font-size: var(--fs-h2); line-height: var(--lh-h2); }
+.rule { display: block; width: 12mm; height: 0.9pt; background: var(--accent); margin: 4.2mm 0 4.2mm; }
+.lead {
+  font-size: var(--fs-lead); line-height: 1.45; color: var(--ink); text-wrap: pretty;
+  margin-bottom: 4.2mm; max-width: 120mm;
+}
+.body p {
+  font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink-soft); text-wrap: pretty;
+  hyphens: manual; overflow-wrap: normal; max-width: 112mm;
+}
+.body p + p { margin-top: 2.8mm; }
+.note { font-size: var(--fs-caption); line-height: 1.4; color: var(--ink-soft); margin-top: 3mm; }
+.keep { white-space: nowrap; }
+.num { font-family: var(--f-num); font-variant-numeric: tabular-nums lining-nums; }
+.ic { width: 1.2em; height: 1.2em; flex: 0 0 auto; }
+
+/* --- cards: selling points ------------------------------------------- */
+.cards { list-style: none; display: grid; gap: var(--gutter); }
+/* a page whose job is the cards lets them share the whole box */
+.k-highlights .box.text > .cards, .k-highlights .box.text > .cards ~ * { flex: 1 1 auto; }
+.card { display: flex; gap: 3mm; align-items: flex-start; }
+.card h3 {
+  font-family: var(--f-head); font-weight: 600; font-size: var(--fs-h3); line-height: 1.25; color: var(--ink);
+  text-wrap: balance;
+}
+.card p { font-size: var(--fs-small); line-height: 1.45; color: var(--ink-soft); margin-top: 1.4mm; text-wrap: pretty; }
+.ic-wrap { display: inline-flex; align-items: center; justify-content: center; color: var(--accent); flex: 0 0 auto; }
+.card-fig { font-family: var(--f-head); font-size: var(--fs-h2); font-weight: 700; color: var(--accent-text); line-height: 1.1; margin-bottom: 1.6mm; }
+.num-mark { font-family: var(--f-head); font-size: var(--fs-h2); color: var(--accent); line-height: 1; }
+
+/* --- figures and statistics ------------------------------------------ */
+.figures { display: flex; gap: 6mm; flex-wrap: nowrap; }
+.figures .fig { min-width: 0; }
+.figures .fig.long dt { font-size: calc(var(--fs-figure) * 0.62); line-height: 1.2; }
+.figures dt { font-family: var(--f-head); font-size: var(--fs-figure); line-height: 1.05; color: var(--ink); font-weight: var(--w-head); }
+.figures dd { font-size: var(--fs-caption); text-transform: uppercase; letter-spacing: 0.12em; color: var(--ink-soft); margin-top: 1.6mm; font-weight: 500; }
+.figures.foot { margin-top: auto; padding-top: 5mm; border-top: 0.5pt solid var(--rule); }
+.figures.stack { flex-direction: column; gap: 4.5mm; }
+.stats { display: grid; grid-template-columns: repeat(var(--stat-cols, 3), 1fr); gap: var(--gutter); }
+.stats.n2 { --stat-cols: 2; } .stats.n4 { --stat-cols: 4; }
+.stat dt { font-family: var(--f-head); font-size: var(--fs-figure); line-height: 1; color: var(--support-text); font-weight: var(--w-head); }
+.stat dd { font-size: var(--fs-small); line-height: 1.35; color: var(--ink-soft); margin-top: 2mm; }
+
+/* --- overview points --------------------------------------------------- */
+.points { list-style: none; display: flex; flex-direction: column; gap: 2.4mm; }
+.points li { display: flex; gap: 2.4mm; font-size: var(--fs-small); line-height: 1.45; color: var(--ink-soft); }
+.points li .ic { color: var(--accent); margin-top: 0.2mm; }
+.points b { color: var(--ink); font-weight: 600; }
+
+/* --- amenity zones --------------------------------------------------- */
+.zones { display: grid; grid-template-columns: repeat(var(--zone-cols, 3), minmax(0, 1fr)); gap: 5mm calc(var(--gutter) * 2); align-content: start; }
+.zones.n2 { --zone-cols: 2; } .zones.n4 { --zone-cols: 2; }
+.zone { min-width: 0; }
+.zone h3 {
+  display: flex; align-items: center; gap: 2mm; font-family: var(--f-body); font-size: var(--fs-small);
+  font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink); margin-bottom: 2mm;
+}
+.zone h3 .ic { color: var(--accent); width: 1.5em; height: 1.5em; }
+.zone ul { list-style: none; }
+.zone li { font-size: var(--fs-small); line-height: 1.5; color: var(--ink-soft); padding-left: 3mm; position: relative; text-wrap: pretty; }
+.zone li::before { content: ""; position: absolute; left: 0; top: 0.68em; width: 1.2mm; height: 0.5pt; background: var(--accent); }
+
+/* --- the unit schedule ----------------------------------------------- */
+table.units { width: 100%; border-collapse: collapse; font-size: var(--fs-small); }
+table.units th {
+  text-align: left; font-size: var(--fs-caption); text-transform: uppercase; letter-spacing: 0.1em;
+  font-weight: 600; color: var(--ink-soft); padding: 0 0 2.4mm; border-bottom: 0.75pt solid var(--ink);
+}
+table.units td { padding: 2.6mm 0; border-bottom: 0.5pt solid var(--rule); vertical-align: baseline; color: var(--ink); }
+table.units .r { text-align: right; padding-left: 4mm; }
+table.units .u-name { font-family: var(--f-head); font-weight: 600; font-size: var(--fs-h3); margin-right: 2.4mm; }
+table.units .u-detail { color: var(--ink-soft); font-size: var(--fs-caption); }
+table.units .price { font-weight: 600; color: var(--accent-text); }
+
+/* --- places ---------------------------------------------------------- */
+.places { list-style: none; display: flex; flex-direction: column; }
+.places li {
+  display: flex; align-items: center; gap: 3mm; padding: 2.4mm 0; border-bottom: 0.5pt solid var(--rule);
+  font-size: var(--fs-small); line-height: 1.35;
+}
+.places .p-name { flex: 1 1 auto; color: var(--ink); }
+.places .dist { flex: 0 0 auto; color: var(--support-text); font-weight: 600; }
+.places .ic { color: var(--accent); }
+.addr { display: flex; gap: 2mm; font-size: var(--fs-caption); color: var(--ink-soft); margin-top: 3.5mm; line-height: 1.4; }
+.addr .ic { color: var(--accent); }
+
+.rings { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; align-items: center; margin-bottom: 4mm; }
+.rings-svg { width: 100%; flex: 1 1 auto; min-height: 50mm; font-family: var(--f-body); }
+.rings-svg .ring { fill: none; stroke: var(--rule); stroke-width: 0.35; stroke-dasharray: 1 1.2; }
+.rings-svg .ring-l { font-size: 2.6px; fill: var(--ink-soft); }
+.rings-svg .hub { fill: var(--accent); }
+.rings-svg .hub-halo { fill: none; stroke: var(--accent); stroke-width: 0.5; opacity: 0.5; }
+.rings-svg .pt { fill: var(--support); }
+.rings-svg .pt-l { font-size: 3.1px; fill: var(--ink); font-weight: 500; }
+.rings-note { font-size: var(--fs-legal); color: var(--ink-soft); }
+.v-noimage.k-location .places { display: grid; grid-template-columns: 1fr 1fr; column-gap: 8mm; }
+
+/* --- contact --------------------------------------------------------- */
+.contact { display: flex; gap: 6mm; align-items: flex-end; justify-content: space-between; }
+.c-lines { display: flex; flex-direction: column; gap: 2.2mm; min-width: 0; }
+.phone { display: flex; align-items: center; gap: 2.4mm; font-size: var(--fs-h2); font-weight: 600; white-space: nowrap; }
+.c-line { display: flex; gap: 2.4mm; align-items: center; font-size: var(--fs-small); line-height: 1.4; }
+.qr { display: flex; flex-direction: column; align-items: center; gap: 1.4mm; flex: 0 0 auto; }
+.qr img { width: 22mm; height: 22mm; display: block; background: #fff; padding: 1.2mm; }
+.qr span { font-size: var(--fs-caption); }
+.dev { font-size: var(--fs-caption); margin-top: 4mm; }
+.legal { margin-top: auto; padding-top: 5mm; font-size: var(--fs-legal); line-height: 1.45; }
+.legal .rera { font-weight: 600; margin-bottom: 1mm; }
+
+/* --- logo ------------------------------------------------------------ */
+.logo img { display: block; max-height: 100%; max-width: 100%; width: auto; height: auto; object-fit: contain; }
+.logo.word { font-family: var(--f-head); font-size: var(--fs-h3); font-weight: 600; }
+.logo.plate { background: var(--paper); padding: 2.4mm 3.2mm; display: inline-flex; }
+.logo { align-self: flex-start; }
+
+/* --- the folio --------------------------------------------------------- */
+.folio {
+  position: absolute; left: var(--m-left); right: var(--m-right); bottom: calc(var(--m-bottom) * 0.42);
+  display: flex; gap: 3mm; align-items: center; font-size: var(--fs-caption); color: var(--ink-soft);
+  letter-spacing: 0.06em; pointer-events: none;
+}
+.o-portrait .folio { bottom: calc(var(--m-left) * 0.42); }
+
+/* --- the closing page ---------------------------------------------------- */
+.k-closing .box.text { display: flex; flex-direction: column; }
+.k-closing.v-band .box.text {
+  display: grid; grid-template-columns: 6fr 6fr; grid-template-rows: 1fr auto;
+  grid-template-areas: "head body" "legal legal"; column-gap: calc(var(--gutter) * 4);
+}
+.k-closing.v-band .col-head { grid-area: head; }
+.k-closing.v-band .col-body { grid-area: body; justify-content: space-between; }
+.k-closing.v-band .legal { grid-area: legal; padding-top: 3mm; }
+.k-closing.v-band .closing-logo { margin-bottom: 5mm; }
+.k-closing .contact { flex-wrap: wrap; row-gap: 4mm; }
+.k-closing .col-body { margin-top: 2mm; }
+
+/* --- residences with their plans ------------------------------------------ */
+.k-residences.v-plans table.units td { padding: 3.2mm 0; }
+.k-residences.v-plans .cards { grid-template-columns: 1fr 1fr; }
+
+.o-portrait .figures.stack { flex-direction: row; gap: 8mm; }
+.o-digital .cards.n5, .o-digital .cards.n6 { grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 6mm; }
+.o-digital .k-highlights .card p { font-size: var(--fs-small); }
+
+/* --- generic layout patterns ------------------------------------------ */
+/* band: a photograph across the top, the copy in two zones beneath */
+.v-band .box.text, .v-stack .box.text, .v-rows .box.text {
+  display: grid; grid-template-columns: 5fr 7fr; column-gap: calc(var(--gutter) * 3); align-content: start;
+}
+.v-band .box.text > .figures.foot { grid-column: 2; grid-row: 2; align-self: end; }
+.v-stack .box.text > .figures.foot { grid-column: 1 / -1; }
+.v-band .col-body, .v-stack .col-body { padding-top: 1mm; }
+.v-band .body p, .v-stack .body p { max-width: none; }
+.v-stack .box.text { grid-template-columns: 1fr; }
+/* portrait: the copy band under a photograph reads as two zones, centred in
+   the space the photograph leaves */
+.o-portrait .v-stack.k-feature .box.text.wide, .o-portrait .v-stack.k-overview .box.text.wide,
+.o-portrait .v-stack.k-figures .box.text.wide {
+  grid-template-columns: 5fr 7fr; align-content: safe center;
+}
+.o-portrait .v-stack .box.text > .figures.foot { grid-column: 1 / -1; }
+.o-portrait .lead, .o-portrait .body p { max-width: none; }
+.v-rows .box.text { grid-template-columns: 5fr 7fr; }
+.v-rows .rule { display: none; }
+.v-rows .col-head .title { margin-bottom: 2mm; }

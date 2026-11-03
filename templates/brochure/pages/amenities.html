@@ -1,0 +1,11 @@
+{# AMENITIES — by zone, as a resident uses them, under the photographs. #}
+{{ m.images(page, captions=True) }}
+{% if page.boxes.get('head') %}
+  {% call m.box(page, 'head') %}{{ m.head(page.words) }}{% endcall %}
+  {% call m.box(page, 'text') %}{{ m.zones(page.data.zones) }}{% endcall %}
+{% else %}
+  {% call m.box(page, 'text') %}
+    <div class="col-head">{{ m.head(page.words) }}</div>
+    {{ m.zones(page.data.zones) }}
+  {% endcall %}
+{% endif %}

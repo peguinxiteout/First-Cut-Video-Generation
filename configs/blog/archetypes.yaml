@@ -1,0 +1,387 @@
+# Article archetypes.
+#
+# One generic template for every topic was a root cause of "generic,
+# tangential content": a locality guide, a comparison, a buyer's guide and
+# a legal explainer answer different search intents and need different
+# shapes. The planner picks an archetype (the brief can force one with
+# `article_type`), and the archetype decides:
+#
+#   * the search intent the post must satisfy,
+#   * how deep the research goes (a legal explainer does not need the
+#     nearest pharmacy; a locality guide does),
+#   * the section plan — each slot with a purpose and a FORMAT (table,
+#     checklist, steps...), so structure is planned rather than improvised.
+#
+# Slot `when`:
+#   always                   always planned
+#   requested                only if one of `covers` was requested
+#   facts:<cat>[,<cat>]      only if the brief/research has facts of a category
+#   requested_or_facts:<cat> either of the above
+#   options                  only if the topic names two options to compare
+#
+# Heading patterns use {place} {place_full} {audience} {Audience} {subject}
+# {a} {b}. The first pattern whose placeholders all resolve is used.
+
+archetypes:
+  locality_guide:
+    title_suffix: "What {Audience} Should Know"
+    keyword_patterns: ["living in {place}", "{place} real estate", "{place} connectivity"]
+    label: Locality guide
+    search_intent: Local commercial investigation — "is this area right for me?"
+    match: ['living in', 'area guide', 'locality', 'neighbou?rhood', 'good (?:place|area|location)',
+            'worth (?:buying|it)', 'should (?:you|i) buy in', 'buy(?:ing)? (?:a home |property |a flat )?in\b',
+            'move to', 'life in', 'places to live', 'is .+ good for']
+    needs_location: true
+    research: [location, background, news, official, competitors]
+    slots:
+      - {id: at_a_glance, format: table, when: always,
+         heading: ["{Keyword}: the facts at a glance", "{place} at a glance: the facts that matter", "At a glance: the facts that matter"],
+         purpose: "Every verified fact in one scannable table, labelled by source."}
+      - {id: strengths, format: list, when: always, covers: [strengths, pros_cons],
+         heading: ["Where {place} works well for {audience}", "Where this location works well"],
+         purpose: "The genuine advantages, each tied to why it matters for this reader."}
+      - {id: connectivity, format: table, when: requested_or_facts:connectivity, covers: [location_analysis],
+         heading: ["Getting around {place}: commutes and connectivity", "Commutes and connectivity"],
+         purpose: "Measured distances and journeys, with how to test them at peak hour."}
+      - {id: daily_life, format: list, when: requested_or_facts:social,amenity, covers: [amenities, lifestyle_perspective],
+         heading: ["Daily life in {place}: schools, healthcare and errands", "Daily life: schools, healthcare and errands"],
+         purpose: "What everyday routines look like, from real nearby places."}
+      - {id: pricing, format: table, when: requested_or_facts:price, covers: [pricing_value],
+         heading: ["What your budget buys in {place}", "What your budget buys"],
+         purpose: "Prices from the brief, and how to compare value like-for-like."}
+      - {id: tradeoffs, format: list, when: always, covers: [weaknesses],
+         heading: ["The trade-offs to weigh before choosing {place}", "The trade-offs to weigh honestly"],
+         purpose: "Honest limitations, not softened into positives."}
+      - {id: future, format: prose, when: requested_or_facts:infrastructure, covers: [future_potential, market_perspective],
+         heading: ["What could change in {place}: announced vs. operational", "What could change: announced vs. operational"],
+         purpose: "Upcoming changes, clearly separated from what exists today."}
+      - {id: investment_returns, format: prose, when: requested, covers: [investment_perspective],
+         heading: ["{place} as an investment: what to count on and what not to", "The investment view: what to count on"],
+         purpose: "Drivers, holding horizon and risks, without promising returns."}
+      - {id: who_it_suits, format: table, when: always, covers: [conclusion],
+         heading: ["Who {place} suits — and who should look elsewhere", "Who this suits — and who should look elsewhere"],
+         purpose: "Decision guidance by buyer profile."}
+      - {id: due_diligence, format: checklist, when: always, covers: [buyer_considerations],
+         heading: ["Before you book in {place}: a due-diligence checklist", "Before you book: a due-diligence checklist"],
+         purpose: "Concrete checks, with where to verify each one."}
+
+  buyers_guide:
+    title_suffix: "What to Check Before You Book"
+    keyword_patterns: ["home buying checklist", "property buying tips {city}"]
+    label: Buyer's guide
+    search_intent: Informational with purchase intent — "how do I get this decision right?"
+    match: ['guide', '\btips\b', 'first[- ]time', 'things to (?:know|check|consider)', 'mistakes',
+            'checklist', 'before (?:buying|you buy|booking)', 'what to look for', 'how to choose',
+            'should i buy']
+    needs_location: false
+    research: [location, background, official, competitors, news]
+    slots:
+      - {id: context, format: prose, when: always,
+         heading: ["Why this decision is harder than it looks for {audience}", "Why this decision is harder than it looks"],
+         purpose: "The real problem the reader faces, framed from their side."}
+      - {id: at_a_glance, format: table, when: facts:price,connectivity,project,legal,social,market,infrastructure,amenity,
+         heading: ["{Keyword}: the facts to anchor your decision", "The facts to anchor your decision"],
+         purpose: "Verified facts from the brief and research, labelled by source."}
+      - {id: steps, format: steps, when: always,
+         heading: ["Step by step: from budget to booking"],
+         purpose: "The decision in the order the reader will face it."}
+      - {id: pricing, format: table, when: always, covers: [pricing_value],
+         heading: ["The real cost: what to budget beyond the price tag"],
+         purpose: "All-in cost items and how to compare offers like-for-like."}
+      - {id: strengths, format: list, when: requested, covers: [strengths, pros_cons],
+         heading: ["What works in favour of {place} buyers", "What works in your favour"],
+         purpose: "Concrete advantages for this reader."}
+      - {id: connectivity, format: table, when: requested_or_facts:connectivity, covers: [location_analysis],
+         heading: ["Judging the location: commutes and connectivity"],
+         purpose: "How to judge a location with measured data."}
+      - {id: common_mistakes, format: list, when: always, covers: [weaknesses],
+         heading: ["Common mistakes {audience} make — and how to avoid them", "Common mistakes and how to avoid them"],
+         purpose: "The traps, each with the specific avoidance step."}
+      - {id: due_diligence, format: checklist, when: always, covers: [buyer_considerations],
+         heading: ["Your pre-booking checklist"],
+         purpose: "A checklist the reader can take on a site visit."}
+
+  comparison:
+    title_suffix: "Which One Suits You?"
+    keyword_patterns: []
+    label: Comparison
+    search_intent: Commercial investigation — "which of these should I choose?"
+    match: ['\bvs\.?\b', '\bversus\b', '\bcompar', 'which is better', 'difference between', '\bor\b.+\?']
+    needs_location: false
+    research: [location, background, official, competitors]
+    slots:
+      - {id: comparison_table, format: table, when: always, covers: [comparison],
+         heading: ["{a} vs {b} at a glance", "Side by side at a glance"],
+         purpose: "Both options on the same criteria, from verified facts."}
+      - {id: option_profiles, format: prose, when: always, covers: [strengths, location_analysis],
+         heading: ["What each option offers {audience}", "What each option offers"],
+         purpose: "A short, fair profile of each option."}
+      - {id: pricing, format: table, when: requested_or_facts:price, covers: [pricing_value],
+         heading: ["Price and value: comparing like with like"],
+         purpose: "How to compare cost per usable area and all-in cost."}
+      - {id: pros_cons, format: pros_cons, when: always, covers: [pros_cons, weaknesses],
+         heading: ["Where each option wins and where it falls short"],
+         purpose: "Balanced advantages and drawbacks for each."}
+      - {id: who_it_suits, format: table, when: always, covers: [conclusion],
+         heading: ["Which one fits you: a decision guide"],
+         purpose: "If-this-then-that guidance by buyer profile."}
+      - {id: due_diligence, format: checklist, when: always, covers: [buyer_considerations],
+         heading: ["Checks to run on whichever you choose"],
+         purpose: "Verification steps common to both options."}
+
+  investment_analysis:
+    title_suffix: "What to Count On and What Not To"
+    keyword_patterns: ["{place} rental yield", "investing in {place}", "{place} property prices"]
+    label: Investment analysis
+    search_intent: Commercial investigation — "will this make money, and what could go wrong?"
+    match: ['invest', '\broi\b', 'rental yield', 'apprecia', '\breturns?\b', 'rental income',
+            'capital gain']
+    needs_location: true
+    research: [location, background, news, official, competitors]
+    slots:
+      - {id: at_a_glance, format: table, when: always,
+         heading: ["{Keyword}: the investment case at a glance", "The investment case at a glance"],
+         purpose: "Verified facts relevant to an investor, labelled by source."}
+      - {id: demand_drivers, format: list, when: always, covers: [strengths, location_analysis, market_perspective],
+         heading: ["What drives demand in {place}", "What drives demand here"],
+         purpose: "The tenant and buyer demand drivers that are verifiable."}
+      - {id: pricing, format: table, when: requested_or_facts:price, covers: [pricing_value],
+         heading: ["Entry price and the costs of holding"],
+         purpose: "Entry price from the brief plus holding-cost items."}
+      - {id: investment_returns, format: prose, when: always, covers: [investment_perspective],
+         heading: ["Returns: what you can count on and what you can't"],
+         purpose: "Rental and appreciation logic without promising returns."}
+      - {id: future, format: prose, when: requested_or_facts:infrastructure, covers: [future_potential],
+         heading: ["Catalysts to watch: announced vs. operational"],
+         purpose: "Upcoming changes, priced cautiously."}
+      - {id: tradeoffs, format: list, when: always, covers: [weaknesses],
+         heading: ["Risks that could weaken the investment case"],
+         purpose: "Liquidity, supply, delivery and regulatory risks."}
+      - {id: who_it_suits, format: table, when: always, covers: [conclusion],
+         heading: ["Which kind of investor {place} suits", "Which kind of investor this suits"],
+         purpose: "Decision guidance by horizon and goal."}
+      - {id: due_diligence, format: checklist, when: always, covers: [buyer_considerations],
+         heading: ["An investor's due-diligence checklist"],
+         purpose: "Checks before committing capital."}
+
+  explainer:
+    title_suffix: "What It Means for {Audience}"
+    keyword_patterns: []
+    label: Explainer
+    search_intent: Informational — "what is this and how does it affect me?"
+    match: ['what is', 'what are', 'explained', 'meaning', 'how does', 'understanding', '\brera\b',
+            'stamp duty', 'carpet area', 'super built-up', '\brules?\b', '\blaw\b', '\btax\b', '\bgst\b',
+            'home loan', 'occupancy certificate']
+    needs_location: false
+    research: [background, official, news, competitors]
+    slots:
+      - {id: context, format: prose, when: always,
+         heading: ["{subject}, in plain terms"],
+         purpose: "A plain-language definition anchored in the reader's situation."}
+      - {id: why_it_matters, format: list, when: always,
+         heading: ["Why it matters to {audience}", "Why it matters to you"],
+         purpose: "The concrete consequences for the reader's money and risk."}
+      - {id: at_a_glance, format: table, when: facts:legal,price,project,market,infrastructure,
+         heading: ["Key facts to know"],
+         purpose: "Verified facts, labelled by source."}
+      - {id: how_it_works, format: steps, when: always,
+         heading: ["How it works in practice"],
+         purpose: "The mechanics as a sequence the reader can follow."}
+      - {id: common_mistakes, format: list, when: always, covers: [weaknesses],
+         heading: ["Common misunderstandings that cost buyers"],
+         purpose: "Misconceptions with the correction for each."}
+      - {id: due_diligence, format: checklist, when: always, covers: [buyer_considerations],
+         heading: ["How to check it yourself"],
+         purpose: "Verification steps and official places to check."}
+
+  how_to:
+    title_suffix: "A Step-by-Step Guide"
+    keyword_patterns: []
+    label: How-to
+    search_intent: Informational/transactional — "walk me through doing this"
+    match: ['how to', '\bsteps?\b', 'process', 'procedure', 'documents? (?:required|needed)', 'apply for',
+            '\bregister\b']
+    needs_location: false
+    research: [background, official, competitors]
+    slots:
+      - {id: context, format: prose, when: always,
+         heading: ["Before you start: what this process involves"],
+         purpose: "Scope, who it applies to, and what to prepare."}
+      - {id: steps, format: steps, when: always,
+         heading: ["The process, step by step"],
+         purpose: "Numbered steps with what to check at each."}
+      - {id: due_diligence, format: checklist, when: always, covers: [buyer_considerations],
+         heading: ["Documents and checks you will need"],
+         purpose: "A checklist of documents and verifications."}
+      - {id: common_mistakes, format: list, when: always, covers: [weaknesses],
+         heading: ["Where people get stuck — and how to avoid it"],
+         purpose: "Typical delays and how to avoid them."}
+
+  market_update:
+    title_suffix: "What Has Changed and What It Means"
+    keyword_patterns: ["{place} property prices", "{place} real estate trends"]
+    label: Market update
+    search_intent: Informational — "what is happening, and what does it mean for me?"
+    match: ['trends?', 'market update', 'outlook', 'prices? in', '\bnews\b', 'forecast', '\breport\b',
+            'what.s next for']
+    needs_location: true
+    research: [location, background, news, official, competitors]
+    slots:
+      - {id: at_a_glance, format: table, when: always,
+         heading: ["{Keyword}: the numbers that matter now", "The numbers that matter right now"],
+         purpose: "Verified figures with their sources and dates."}
+      - {id: market_drivers, format: list, when: always, covers: [market_perspective],
+         heading: ["What is shaping the {place} market", "What is shaping the market"],
+         purpose: "Drivers, each tied to evidence."}
+      - {id: future, format: prose, when: always, covers: [future_potential],
+         heading: ["Infrastructure watch: announced vs. operational"],
+         purpose: "What is announced versus what is operating."}
+      - {id: what_it_means, format: table, when: always, covers: [investment_perspective, pricing_value],
+         heading: ["What it means for {audience}", "What it means for you"],
+         purpose: "Implications by reader profile."}
+      - {id: tradeoffs, format: list, when: always, covers: [weaknesses],
+         heading: ["Risks worth watching"],
+         purpose: "What could change the picture."}
+      - {id: due_diligence, format: checklist, when: always, covers: [buyer_considerations],
+         heading: ["If you are buying now: a short checklist"],
+         purpose: "Practical checks for the current market."}
+
+# Requested catalogue sections that the chosen archetype has no slot for
+# are added as these slots, so a request is never silently dropped.
+fallback_slots:
+  strengths: strengths
+  weaknesses: tradeoffs
+  pros_cons: pros_cons
+  comparison: comparison_table
+  investment_perspective: investment_returns
+  location_analysis: connectivity
+  amenities: daily_life
+  market_perspective: market_drivers
+  lifestyle_perspective: daily_life
+  pricing_value: pricing
+  future_potential: future
+  buyer_considerations: due_diligence
+  conclusion: who_it_suits
+
+# Generic heading for a fallback slot that has no entry in the archetype.
+slot_headings:
+  strengths: ["Where {place} works well for {audience}", "What works in its favour"]
+  tradeoffs: ["The trade-offs to weigh honestly"]
+  pros_cons: ["Pros and cons at a glance for {audience}", "The pros and cons, side by side"]
+  comparison_table: ["{a} vs {b} at a glance", "How the alternatives compare"]
+  investment_returns: ["The investment view: what to count on and what not to"]
+  connectivity: ["Getting around {place}: commutes and connectivity", "Commutes and connectivity"]
+  daily_life: ["Daily life in {place}: schools, healthcare and errands", "Daily life: schools, healthcare and errands"]
+  market_drivers: ["What is shaping the {place} market", "What is shaping the market"]
+  pricing: ["What your budget buys in {place}", "Price and value: what to compare"]
+  future: ["What could change: announced vs. operational"]
+  due_diligence: ["Before you book: a due-diligence checklist"]
+  who_it_suits: ["Who this suits — and who should look elsewhere"]
+
+slot_formats:
+  strengths: list
+  tradeoffs: list
+  pros_cons: pros_cons
+  comparison_table: table
+  investment_returns: prose
+  connectivity: table
+  daily_life: list
+  market_drivers: list
+  pricing: table
+  future: prose
+  due_diligence: checklist
+  who_it_suits: table
+
+# Audience profiles. `priorities` orders which facts lead; `why` says, per
+# fact category, why it matters to THIS reader (the difference between a
+# list of facts and advice). `concern` frames the hook.
+audiences:
+  first_time_buyers:
+    match: ['first[- ]time', 'first home', 'young professional', 'young couple', 'starter']
+    label: first-time buyers
+    priorities: [price, legal, connectivity, employment, social, project, amenity, infrastructure, market]
+    concern: stretching a first budget without taking on risks you cannot see yet
+    why:
+      employment: "A short trip to work is worth more than most amenities, every single day."
+      price: "The listed price is only the start: loan eligibility, registration and interiors decide what you actually spend."
+      connectivity: "A shorter daily commute is worth real money over the years you will live with it."
+      social: "Schools and clinics close by matter even before you need them — they also hold resale demand."
+      legal: "Registration and approvals are your main protection when you are buying for the first time."
+      infrastructure: "Announced projects can help later, but they should not be what makes the numbers work today."
+      amenity: "Everyday convenience shapes how the home feels far more than the brochure amenities."
+      project: "Configuration and carpet area decide whether the home still fits you in five years."
+      market: "Rental and resale demand is your safety net if plans change."
+  families:
+    match: ['famil', 'children', '\bkids\b', 'parents', 'school']
+    label: families
+    priorities: [social, amenity, connectivity, employment, legal, price, project, infrastructure, market]
+    concern: whether daily life works — school runs, healthcare and safe open space — not just the flat itself
+    why:
+      employment: "Being close to both parents' workplaces is what makes school runs and office hours fit together."
+      social: "Short school and clinic runs shape a family's week more than any amenity inside the gate."
+      amenity: "Parks and everyday shops within easy reach make weekends and errands simpler."
+      connectivity: "Two working parents feel every extra minute of commute twice."
+      legal: "Clear approvals protect the home you plan to stay in for years."
+      price: "Budget for the size you will need as children grow, not just the size you need today."
+      infrastructure: "Construction nearby can mean dust and diversions for a few years before it helps."
+      project: "Usable carpet area and layout matter more than the headline configuration."
+      market: "Steady resale demand keeps your options open if you need to move."
+  investors:
+    match: ['invest', 'rental', '\byield', '\broi\b', 'landlord', 'portfolio']
+    label: investors
+    priorities: [market, infrastructure, connectivity, employment, price, legal, project, social, amenity]
+    concern: separating demand you can verify from growth that has only been promised
+    why:
+      employment: "Tenants follow jobs — homes near large employers rent faster and hold value better."
+      market: "Rental demand and resale depth decide both your income and how easily you can exit."
+      infrastructure: "Operational infrastructure supports rents; announced projects only support hope until they open."
+      connectivity: "Tenants pay for short commutes to employment hubs."
+      price: "Entry price sets your yield — every lakh above fair value comes straight out of returns."
+      legal: "A registered, approved project is easier to rent, finance and resell."
+      project: "Compact, efficient layouts usually rent faster than oversized ones."
+      social: "Schools and hospitals nearby widen the pool of family tenants."
+      amenity: "Everyday convenience shortens vacancy periods."
+  nri:
+    match: ['\bnri\b', 'non-resident', 'overseas', 'abroad']
+    label: NRI buyers
+    priorities: [legal, project, price, market, connectivity, employment, social, infrastructure, amenity]
+    concern: making a safe decision from a distance, without seeing every detail in person
+    why:
+      employment: "Nearby employers drive rental demand while you are away."
+      legal: "When you cannot visit often, the public registration record is your most reliable check."
+      project: "Clear specifications in writing matter more when you cannot inspect progress yourself."
+      price: "Compare all-in cost in rupees, including charges that are easy to miss from abroad."
+      market: "Rental demand determines whether the home pays its way while you are away."
+      connectivity: "Connectivity drives both tenant demand and resale."
+      social: "Nearby schools and hospitals matter if family will live there."
+      infrastructure: "Treat announced projects as upside, not as the reason to buy."
+      amenity: "Day-to-day convenience is what tenants and family will notice first."
+  retirees:
+    match: ['retire', 'senior', 'elderly']
+    label: retirees
+    priorities: [social, amenity, connectivity, employment, legal, price, project, infrastructure, market]
+    concern: comfort, healthcare access and a calm neighbourhood over the long term
+    why:
+      employment: "Less relevant for you directly, but nearby employers keep the area busy and well served."
+      social: "Quick access to hospitals and clinics matters more each year."
+      amenity: "Walkable parks and shops keep daily life independent."
+      connectivity: "Good roads to family and the airport keep visits easy."
+      legal: "Clean paperwork avoids disputes you do not want to manage later."
+      price: "Keep enough liquidity aside rather than stretching for size."
+      project: "Lifts, layout and maintenance quality matter more than amenities you may not use."
+      infrastructure: "Long construction phases nearby mean noise and dust."
+      market: "Resale depth matters if you later want to move closer to family."
+  default:
+    label: homebuyers
+    priorities: [price, connectivity, employment, social, legal, amenity, project, infrastructure, market]
+    concern: paying a fair price for a home that still works for you years from now
+    why:
+      employment: "Commute time to work is the cost you pay every working day."
+      price: "The listed price is only part of the cost; compare all-in figures on the same basis."
+      connectivity: "Commute time is the cost you pay every working day."
+      social: "Schools and healthcare nearby support both daily life and resale value."
+      legal: "Registration and approvals are your strongest protection before you pay."
+      infrastructure: "Announced projects can add value later, but timelines often slip."
+      amenity: "Everyday convenience shapes daily life more than brochure amenities."
+      project: "Usable carpet area and layout decide how the home lives."
+      market: "Rental and resale demand keep your exit options open."

@@ -1,0 +1,40 @@
+/* Paged media for the article PDF (on top of styles.css).
+
+   Chromium paginates; these rules say where it may break. The first page
+   carries the site bar flush to the top edge, later pages get a top
+   margin. The page footer (site, title, page x of y) is drawn by the
+   worker's footer template in the bottom margin. */
+@page { size: A4 portrait; margin: 15mm 0 17mm 0; }
+@page :first { margin-top: 0; }
+
+body { font-size: 10.6pt; }
+.headline, .article, .hero { padding-left: 0; padding-right: 0; }
+/* Side margins live on the content so full-bleed rules (the site bar) can
+   reach the paper's edge while text keeps a comfortable measure. */
+.article, .headline { width: var(--measure); }
+
+/* Never leave a heading at the foot of a page: each heading travels with
+   the block after it, and nothing may break straight after one. */
+/* (Deliberately NO break-after: avoid on .keep: combined with
+   break-inside: avoid, Chromium resolves the conflict by breaking INSIDE
+   the group — exactly the stranded heading this exists to prevent.) */
+.keep { break-inside: avoid; page-break-inside: avoid; }
+/* The end matter (sources, topics, disclaimer) reads as one block. */
+.article-end { break-inside: avoid; page-break-inside: avoid; }
+h1, h2, h3, h4 { break-after: avoid; page-break-after: avoid; break-inside: avoid; }
+.prose p, .prose li { orphans: 3; widows: 3; }
+
+/* Short tables stay whole; long ones may break between rows and repeat
+   their header row on the next page. */
+.table-short { break-inside: avoid; page-break-inside: avoid; }
+.table-long { break-inside: auto; }
+
+/* Pictures are never split across pages. */
+img { break-inside: avoid; page-break-inside: avoid; }
+
+/* Links print as text (the sources list carries the URLs). */
+.prose a { border-bottom: none; color: var(--rust); }
+
+/* Set by the render step when the PDF audit found this section's heading
+   stranded at a page bottom: start it on a fresh page instead. */
+.break-before { break-before: page; page-break-before: always; }

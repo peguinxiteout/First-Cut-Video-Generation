@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+{# THE BROCHURE — one skeleton for every template.
+
+   Each page arrives planned (src/agents/brochure/book.py): a layout from
+   layouts.py with every slot in millimetres, the images placed in them,
+   the structured content and the copy. This file draws it. The design
+   system is brochure.css; each category's identity is themes/<category>.css.
+   Everything is authored at printed size: mm for geometry, pt for type. #}
+{% import "macros.html" as m with context %}
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>{{ content.name }} — Brochure</title>
+<style>{{ font_face_css | safe }}
+:root {
+  --page-w: {{ book.width_mm }}mm; --page-h: {{ book.height_mm }}mm;
+  --trim-w-pt: {{ spec.sheet.trim_w_pt | round(2) }}; --trim-h-pt: {{ spec.sheet.trim_h_pt | round(2) }};
+  --bleed: 3mm; --slug: 9mm;
+  --m-top: {{ margins[0] }}mm; --m-right: {{ margins[1] }}mm; --m-bottom: {{ margins[2] }}mm; --m-left: {{ margins[3] }}mm;
+  --gutter: {{ design.gutter }}mm; --radius: {{ design.radius }}mm;
+  --f-head: {{ design.stack(design.heading_font, serif=book.category != 'affordable') | safe }};
+  --f-body: {{ design.stack(design.body_font) | safe }};
+  --f-num: {{ design.stack(design.numeral_font) | safe }};
+  --w-head: {{ design.heading_weight }}; --w-body: {{ design.body_weight }};
+  --fs-display: {{ t.display }}pt; --fs-h1: {{ t.h1 }}pt; --fs-h2: {{ t.h2 }}pt; --fs-h3: {{ t.h3 }}pt;
+  --fs-lead: {{ t.lead }}pt; --fs-body: {{ t.body }}pt; --fs-small: {{ t.small }}pt;
+  --fs-caption: {{ t.caption }}pt; --fs-kicker: {{ t.kicker }}pt; --fs-legal: {{ t.legal }}pt;
+  --fs-figure: {{ t.figure }}pt;
+  --lh-h1: {{ t.lh_h1 }}; --lh-h2: {{ t.lh_h2 }}; --lh-body: {{ t.lh_body }};
+  --track-kicker: {{ design.tracking_kicker }};
+  --ornament: {{ ornament }};
+{% for key, value in palette.tokens().items() %}  --{{ key | replace('_', '-') }}: {{ value }};
+{% endfor %}}
+{% include "brochure.css" %}
+{% include "themes/" ~ book.category ~ ".css" %}
+</style>
+</head>
+<body class="c-{{ book.category }} o-{{ book.orientation }}">
+{% for page in book.pages %}
+<div class="sheet">
+<section class="page k-{{ page.kind }} v-{{ page.variant or 'base' }}{{ ' has-img' if page.images }}" data-page="{{ page.number }}" data-kind="{{ page.kind }}">
+  {% include "pages/" ~ page.kind ~ ".html" %}
+  {% if page.kind not in ("cover", "closing") %}{{ m.folio(page) }}{% endif %}
+</section>
+<span class="crop tl h"></span><span class="crop tl v"></span><span class="crop tr h"></span><span class="crop tr v"></span>
+<span class="crop bl h"></span><span class="crop bl v"></span><span class="crop br h"></span><span class="crop br v"></span>
+</div>
+{% endfor %}
+</body>
+</html>

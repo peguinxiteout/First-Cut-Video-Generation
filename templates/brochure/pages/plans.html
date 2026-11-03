@@ -1,0 +1,8 @@
+{# PLANS — each drawing whole on its own card, named beneath. #}
+{{ m.images(page) }}
+{% for name in ('head', 'text') %}{% if page.boxes.get(name) %}
+  {% call m.box(page, name) %}
+    <div class="col-head">{{ m.head(page.words, lead=False) }}</div>
+    {% if page.words.note %}<p class="note">{{ page.words.note }}</p>{% endif %}
+  {% endcall %}
+{% endif %}{% endfor %}

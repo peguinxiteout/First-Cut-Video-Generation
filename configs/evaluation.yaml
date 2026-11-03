@@ -1,0 +1,37 @@
+# Final Quality Score weights for the brochure workflow.
+# Must sum to 1.0.
+#
+# 3 dimensions, all judged by the Critic's combined LLM/VLM call — no
+# separate deterministic "completeness" dimension (removed: it was
+# structural pass/fail scored as if it were a quality judgment, which
+# inflated the overall score even when the actual content/design was
+# mediocre). Whether the PDF rendered at all is instead a hard pass/fail
+# gate before the Critic ever runs — see is_pdf_render_valid() in
+# src/rendering/renderer.py — not something that partially contributes to
+# the Quality Score.
+brochure_weights:
+  factual_consistency: 0.35
+  visual_design_quality: 0.35
+  content_quality: 0.30
+
+# Layout integrity (text cut off / clipped, measured in the real renderer)
+# is blended in only when it was actually measured:
+#   score = (1 - w) * weighted_score_above + w * layout_integrity
+# so an unmeasured run scores exactly as before rather than being treated
+# as either perfect or broken.
+brochure_layout_weight: 0.10
+
+# Final Quality Score weights for the blog workflow.
+# Must sum to 1.0.
+#
+# 3 dimensions: grounding and writing_quality are judged by the Critic's
+# LLM call; structural_completeness is computed deterministically.
+blog_weights:
+  # editorial_integrity is deterministic: section coverage, CTA, no
+  # keyword stuffing, no figures absent from the provided facts, no stock
+  # AI phrasing — the concrete failures in the original-vs-generated
+  # evaluation, checked in code rather than left to an LLM's judgement.
+  grounding: 0.35
+  writing_quality: 0.35
+  structural_completeness: 0.15
+  editorial_integrity: 0.15

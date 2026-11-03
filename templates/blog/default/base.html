@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+{# The web preview: the same article markup as the PDF (_article.html),
+   with the page's search metadata in <head>. #}
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ content.meta_title or content.title }}</title>
+{% if content.meta_description %}<meta name="description" content="{{ content.meta_description }}">{% endif %}
+{% if content.seo_keywords %}<meta name="keywords" content="{{ content.seo_keywords | join(', ') }}">{% endif %}
+{% if content.slug %}<link rel="canonical" href="{{ content.slug }}">{% endif %}
+<style>{{ font_face_css | safe }}
+{% include "styles.css" %}</style>
+</head>
+<body>
+<div class="page">
+{% include "_article.html" %}
+</div>
+</body>
+</html>

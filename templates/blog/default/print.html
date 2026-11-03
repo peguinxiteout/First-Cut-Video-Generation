@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+{# THE BLOG AS A PDF — laid out like a well-designed published web page
+   (site bar, headline block, hero, readable column, key takeaways,
+   contents, tables, checklists, callouts, FAQ, verdict, CTA, sources,
+   topic tags). The article markup is shared with the web preview through
+   _article.html; this file adds only the paged-media rules (print.css). #}
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>{{ content.meta_title or content.title }}</title>
+<style>{{ font_face_css | safe }}
+{% include "styles.css" %}
+{% include "print.css" %}</style>
+</head>
+<body>
+<div class="page">
+{% include "_article.html" %}
+</div>
+</body>
+</html>

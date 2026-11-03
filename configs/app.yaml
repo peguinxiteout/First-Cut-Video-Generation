@@ -1,0 +1,18 @@
+app:
+  name: agentic-content-platform
+  version: "0.1.0"
+
+storage:
+  database_path: ./data/app.db
+  properties_dir: ./data/properties
+  generated_dir: ./data/generated
+
+brochure:
+  default_template: luxury_modern
+  max_gallery_images: 6
+  max_amenity_images: 4
+
+quality_gate:
+  auto_pass_threshold: 90
+  revision_threshold: 80
+  max_revisions: 1

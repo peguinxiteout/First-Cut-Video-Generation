@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <title>First Cut mark</title>
+  <defs>
+    <!-- the stroke's colour: lavender where it is raw, violet into blue where it is finished -->
+    <linearGradient id="fc-ink" gradientUnits="userSpaceOnUse" x1="50" y1="146" x2="156" y2="56">
+      <stop offset="0" stop-color="#B8A4FF"/><stop offset="0.42" stop-color="#6A3DF5"/><stop offset="1" stop-color="#2F74FF"/>
+    </linearGradient>
+    <!-- raw half: rough, dry-brush edges -->
+    <filter id="fc-rough" x="-15%" y="-15%" width="130%" height="130%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.045 0.11" numOctaves="2" seed="5" result="n"/>
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="6" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+    <!-- fade the rough version out, and the clean version in, along the stroke -->
+    <linearGradient id="fc-fade" gradientUnits="userSpaceOnUse" x1="50" y1="146" x2="156" y2="56">
+      <stop offset="0.30" stop-color="#fff"/><stop offset="0.58" stop-color="#000"/>
+    </linearGradient>
+    <linearGradient id="fc-fade-in" gradientUnits="userSpaceOnUse" x1="50" y1="146" x2="156" y2="56">
+      <stop offset="0.30" stop-color="#000"/><stop offset="0.58" stop-color="#fff"/>
+    </linearGradient>
+    <mask id="fc-raw-part" maskUnits="userSpaceOnUse" x="0" y="0" width="200" height="200"><rect width="200" height="200" fill="url(#fc-fade)"/></mask>
+    <mask id="fc-clean-part" maskUnits="userSpaceOnUse" x="0" y="0" width="200" height="200"><rect width="200" height="200" fill="url(#fc-fade-in)"/></mask>
+    <!-- one gesture: a raw brush start, finished with a clean, slanted cut -->
+    <path id="fc-stroke" d="M46 128 C 68 98, 106 70, 151 45 L 161 72 C 122 92, 90 120, 66 150 C 59 157, 39 136, 46 128 Z"/>
+    <clipPath id="fc-in-stroke"><use href="#fc-stroke"/></clipPath>
+  </defs>
+
+  <!-- printer's crop marks: where a finished page is cut -->
+  <g stroke="#1C1733" stroke-width="6.5" stroke-linecap="round" fill="none">
+    <path d="M30 60 V30 H60"/><path d="M140 30 H170 V60"/>
+    <path d="M170 140 V170 H140"/><path d="M60 170 H30 V140"/>
+  </g>
+
+  <!-- raw: textured brush, with a few dry bristle trails -->
+  <g mask="url(#fc-raw-part)">
+    <use href="#fc-stroke" fill="url(#fc-ink)" filter="url(#fc-rough)"/>
+    <g stroke="#B8A4FF" stroke-linecap="round" fill="none" filter="url(#fc-rough)">
+      <path d="M40 142 C 56 130, 72 118, 90 104" stroke-width="2.6"/>
+      <path d="M50 160 C 66 150, 82 138, 100 124" stroke-width="2" opacity=".75"/>
+      <path d="M36 132 C 48 122, 60 112, 74 101" stroke-width="1.4" opacity=".55"/>
+    </g>
+  </g>
+  <!-- finished: the same stroke, crisp and clean -->
+  <g mask="url(#fc-clean-part)"><use href="#fc-stroke" fill="url(#fc-ink)"/></g>
+  <!-- a hairline of light along the finished edge -->
+  <g clip-path="url(#fc-in-stroke)" mask="url(#fc-clean-part)">
+    <path d="M62 128 C 86 104, 116 82, 154 60" stroke="#FFFFFF" stroke-width="1.4" stroke-linecap="round" fill="none" opacity=".45"/>
+  </g>
+</svg>

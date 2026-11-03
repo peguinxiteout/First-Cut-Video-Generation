@@ -1,0 +1,82 @@
+{
+ "property_id": "MY-HOME-TRIDASA",
+ "name": "My Home Tridasa",
+ "developer": "My Home Group",
+ "location": {
+  "city": "Hyderabad",
+  "area": "Tellapur",
+  "address": null
+ },
+ "property_type": "Apartments",
+ "category": "mid",
+ "price": null,
+ "unit_types": [
+  {
+   "name": "2 BHK",
+   "carpet_area": "1253 sq.ft",
+   "price": ""
+  },
+  {
+   "name": "2.5 BHK",
+   "carpet_area": "1505 sq.ft",
+   "price": ""
+  },
+  {
+   "name": "3 BHK",
+   "carpet_area": "1840 sq.ft",
+   "price": ""
+  }
+ ],
+ "usps": [
+  "Ideally located in Tellapur, offering excellent connectivity via the Outer Ring Road (ORR) to major commercial hubs like HITEC City, Financial District, and Gachibowli.",
+  "Offers 84% open spaces, featuring beautifully crafted landscaping, an olive meadow, and a central park.",
+  "Features a generous 100 ft distance between the towers to ensure maximum privacy and ventilation.",
+  "Equipped with a comprehensive automated billing system for water, power, gas, and maintenance."
+ ],
+ "amenities": [
+  "Massive 52,000 sq.ft Clubhouse (Club Tridasa).",
+  "Swimming pool, outdoor gym, badminton court, squash court, and tennis court.",
+  "Pharmacy & Health Centre, Crèche, Spa & Salon, and Grocery Store.",
+  "Multi-purpose halls, guest rooms, library/reading room, and ATM."
+ ],
+ "target_audience": "IT professionals and modern families seeking a premium, highly amenitized, lushly landscaped high-rise township close to Hyderabad's Financial District.",
+ "contact": {
+  "phone": "+9140-66888888",
+  "email": "mktg@myhomeconstructions.com",
+  "website": "www.myhomeconstructions.com"
+ },
+ "cta": null,
+ "tagline": null,
+ "possession": null,
+ "rera_number": "P01100002276",
+ "project_size": "22.56 Acres, 9 Sky-high Towers, 2,682 Total Flats",
+ "landmarks": [
+  {
+   "name": "Continental Consultancy Hospital",
+   "distance": "Proximity",
+   "category": "hospital"
+  },
+  {
+   "name": "Wipro Golf Course",
+   "distance": "Proximity",
+   "category": "recreation"
+  },
+  {
+   "name": "The Gaudium School",
+   "distance": "Proximity",
+   "category": "school"
+  },
+  {
+   "name": "Lingampally Railway Station",
+   "distance": "Proximity",
+   "category": "transport"
+  },
+  {
+   "name": "Gopanpally Circle",
+   "distance": "Proximity",
+   "category": "landmark"
+  }
+ ],
+ "description": null,
+ "brand_color": null
+}

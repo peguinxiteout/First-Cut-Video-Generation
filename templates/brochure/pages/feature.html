@@ -1,0 +1,6 @@
+{# A FEATURE — photographs of one subject and why it matters. #}
+{{ m.images(page, captions=page.topic == 'leisure') }}
+{% call m.box(page, 'text') %}
+  <div class="col-head">{{ m.head(page.words, lead=page.variant != 'band') }}</div>
+  <div class="col-body">{% if page.variant == 'band' and page.words.lead %}<p class="lead">{{ page.words.lead | nobreak }}</p>{% endif %}{{ m.body(page.words) }}</div>
+{% endcall %}

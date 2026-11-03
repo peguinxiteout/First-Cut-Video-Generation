@@ -1,0 +1,20 @@
+{# THE CLOSING PAGE — the call to action and every way to act on it, the
+   developer, the registration, the statutory line. It replaces both the
+   generic "How to book" page and a second contact page. #}
+{% set d = page.data %}
+{{ m.images(page) }}
+{% call m.box(page, 'text') %}
+  <div class="col-head">
+    {% if page.variant != 'band' %}{{ m.logo('closing-logo', dark=True) }}{% endif %}
+    {{ m.head(page.words) }}
+  </div>
+  <div class="col-body">
+    {% if page.variant == 'band' %}{{ m.logo('closing-logo', dark=True) }}{% endif %}
+    {{ m.contact(d, qr_code_uri(d.website) if d.website else None) }}
+    {% if d.developer %}<p class="dev">Developed by {{ d.developer }}</p>{% endif %}
+  </div>
+  <div class="legal">
+    {% if d.rera %}<p class="rera keep">RERA Registration No. {{ d.rera }}</p>{% endif %}
+    <p>{{ legal_line }}</p>
+  </div>
+{% endcall %}

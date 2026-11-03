@@ -1,0 +1,7 @@
+{# THE MASTERPLAN — as large as the page allows, whole; a narrow column. #}
+{{ m.images(page) }}
+{% call m.box(page, 'text') %}
+  <div class="col-head">{{ m.head(page.words) }}</div>
+  <div class="col-body">{{ m.figures(page.data.figures, 'stack') }}</div>
+  {% if page.words.note %}<p class="note">{{ page.words.note }}</p>{% endif %}
+{% endcall %}

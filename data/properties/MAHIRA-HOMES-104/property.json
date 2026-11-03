@@ -1,0 +1,87 @@
+{
+ "property_id": "MAHIRA-HOMES-104",
+ "name": "Mahira Homes 104",
+ "developer": "Mahira Group",
+ "location": {
+  "city": "Gurugram",
+  "area": "Sector 104, Dwarka Expressway",
+  "address": null
+ },
+ "property_type": "Apartments",
+ "category": "affordable",
+ "price": "₹13.81 Lakh to ₹26.24 Lakh",
+ "unit_types": [
+  {
+   "name": "1 BHK",
+   "carpet_area": "337.66 sq.ft",
+   "price": ""
+  },
+  {
+   "name": "2 BHK (Type 1)",
+   "carpet_area": "643.547 sq.ft",
+   "price": ""
+  },
+  {
+   "name": "2 BHK (Type 2)",
+   "carpet_area": "642.352 sq.ft",
+   "price": ""
+  }
+ ],
+ "usps": [
+  "Strategically located on the 150/24 meter Dwarka Expressway, ensuring seamless connectivity to major hubs.",
+  "Unparalleled dedicated car parking space for every single home (1,500 car parks for 1,483 apartments), an exceptional feature for affordable housing.",
+  "Subsidized benefits are available under the Pradhan Mantri Awas Yojna (PMAY) for eligible beneficiaries.",
+  "Energy-efficient and seepage-resistant apartments constructed with earthquake-resistant RCC frameworks."
+ ],
+ "amenities": [
+  "Open gym, jogging track, basketball court, and dedicated skipping area.",
+  "Yoga centre, senior citizen sitting area, gazebo, and kids play area.",
+  "Integrated community centre, restaurant, and boutique shops.",
+  "24x7 CCTV surveillance, comprehensive firefighting system, and rainwater harvesting infrastructure."
+ ],
+ "target_audience": "Budget-conscious buyers, PMAY beneficiaries, and nuclear families seeking an affordable, amenity-rich lifestyle with dedicated parking and direct access to the Dwarka Expressway.",
+ "contact": {
+  "phone": "+91 92509-33999",
+  "email": "info@mahiragroup.com",
+  "website": "www.mahirahomes.com"
+ },
+ "cta": null,
+ "tagline": "Future of Urban Lifestyle",
+ "possession": null,
+ "rera_number": "RERA-GRG-PROJ-910-2021",
+ "project_size": "10.44 Acres, 8 High Rise Towers, 1,483 Apartments",
+ "landmarks": [
+  {
+   "name": "Delhi Public School, Sector 103",
+   "distance": "5 minutes",
+   "category": "school"
+  },
+  {
+   "name": "Gurugram Railway Station",
+   "distance": "5 minutes",
+   "category": "transport"
+  },
+  {
+   "name": "NH 8",
+   "distance": "10 minutes",
+   "category": "highway"
+  },
+  {
+   "name": "ESIC Hospital",
+   "distance": "11 minutes",
+   "category": "hospital"
+  },
+  {
+   "name": "IGI Airport and Delhi border",
+   "distance": "20 minutes",
+   "category": "airport"
+  },
+  {
+   "name": "Medanta Hospital",
+   "distance": "25 minutes",
+   "category": "hospital"
+  }
+ ],
+ "description": null,
+ "brand_color": null
+}

@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+data/app.db
+data/generated/*
+!data/generated/.gitkeep
+mlruns/
+mlartifacts/
+.pytest_cache/
+*.egg-info/
+.DS_Store

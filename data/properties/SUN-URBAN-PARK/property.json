@@ -1,0 +1,87 @@
+{
+ "property_id": "SUN-URBAN-PARK",
+ "name": "Sun Urban Park",
+ "developer": "Sun Builders Group",
+ "location": {
+  "city": "Ahmedabad",
+  "area": "Ambli Bopal Road",
+  "address": null
+ },
+ "property_type": "Mixed-use",
+ "category": "mid",
+ "price": "₹1.11 Cr",
+ "unit_types": [
+  {
+   "name": "3 BHK (Type A)",
+   "carpet_area": "923.86 sq.ft",
+   "price": ""
+  },
+  {
+   "name": "3 BHK (Type B)",
+   "carpet_area": "919.88 sq.ft",
+   "price": ""
+  },
+  {
+   "name": "3 BHK (Type C)",
+   "carpet_area": "932.16 sq.ft",
+   "price": ""
+  },
+  {
+   "name": "3 BHK (Type D)",
+   "carpet_area": "894.58 sq.ft",
+   "price": ""
+  }
+ ],
+ "usps": [
+  "Seamlessly blends residential with ground, first, and second-floor retail development.",
+  "Earthquake Resistant RCC Framed Structure equipped with a hydro-pneumatic water supply system.",
+  "Well-equipped Fire Hydrant System and Rooftop Solar System to power common areas.",
+  "Features a Grey Water Treatment Plant and energy-conservative LED fixtures."
+ ],
+ "amenities": [
+  "Swimming pool, pool deck, and indoor gymnasium.",
+  "Multipurpose synthetic turf, play park, and event lawn.",
+  "Indoor games, reading room, and fountain plaza.",
+  "2 Automatic Elevators per block with 1.5 meter per second speed."
+ ],
+ "target_audience": "Swimming pool, pool deck, and indoor gymnasium. Multipurpose synthetic turf, play park, and event lawn.    Indoor games, reading room, and fountain plaza.    2 Automatic Elevators per block with 1.5 meter per second speed.",
+ "contact": {
+  "phone": "+91 99789 32083",
+  "email": "sales@sunbuilders.in",
+  "website": "www.sunbuilders.in"
+ },
+ "cta": null,
+ "tagline": "Your Space, Your Story",
+ "possession": "June 2028",
+ "rera_number": null,
+ "project_size": "14 Storeys, 7 Towers, 335 Residential Units",
+ "landmarks": [
+  {
+   "name": "Urban Chowk",
+   "distance": "Proximity",
+   "category": "food/leisure"
+  },
+  {
+   "name": "Shalby Hospital",
+   "distance": "Proximity",
+   "category": "hospital"
+  },
+  {
+   "name": "Taj Skyline",
+   "distance": "Proximity",
+   "category": "hotel"
+  },
+  {
+   "name": "Palladium Mall",
+   "distance": "Proximity",
+   "category": "mall"
+  },
+  {
+   "name": "The Gaudium School",
+   "distance": "Proximity",
+   "category": "school"
+  }
+ ],
+ "description": null,
+ "brand_color": null
+}

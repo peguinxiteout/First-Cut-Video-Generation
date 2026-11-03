@@ -1,0 +1,38 @@
+{
+  "property_id": "e128",
+  "name": "Sky Villas at Estate 128",
+  "developer": "Max Estates",
+  "location": {
+    "city": "Noida",
+    "area": "Sector 128",
+    "address": "Noida-Greater Noida Expressway"
+  },
+  "configuration": "4 & 5 BHK Sky Villas",
+  "area": "5,000 - 8,000 sq ft",
+  "amenities": [
+    "Swimming Pool",
+    "Gymnasium",
+    "Clubhouse",
+    "Landscaped Courtyard",
+    "Jogging Track",
+    "Kids Play Area",
+    "Co-working Lounge"
+  ],
+  "rera_number": "UPRERAPRJ123456",
+  "contact": {
+    "phone": "+91 98100 00000",
+    "email": "sales@maxestates.in",
+    "website": "www.maxestates.in"
+  },
+  "category": "luxury",
+  "property_type": "Sky Villas",
+  "unit_types": [
+    {
+      "name": "4 BHK Sky Villa"
+    },
+    {
+      "name": "5 BHK Sky Villa"
+    }
+  ],
+  "cta": "Book a private viewing"
+}

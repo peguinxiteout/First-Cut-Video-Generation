@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentic-content-platform"
+version = "0.1.0"
+description = "Agentic brochure/blog content generation platform"
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+include = ["src", "src.*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+filterwarnings = [
+    "ignore::DeprecationWarning:mlflow.*",
+    "ignore::DeprecationWarning:pydantic.*",
+]

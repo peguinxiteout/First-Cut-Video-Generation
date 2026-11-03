@@ -1,0 +1,88 @@
+# Core
+python-dotenv==1.0.1
+# Pinned as a floor, not exact: google-genai 2.x requires pydantic>=2.12.5.
+pydantic>=2.12.5,<3.0.0
+pydantic-settings>=2.7.0,<3.0.0
+PyYAML==6.0.2
+
+# Orchestration
+langgraph==0.2.39
+langchain-core==0.3.13
+
+# Model providers
+# Pinned to modern releases: the httpx library removed a `proxies` constructor
+# argument that old SDK releases (pre google-genai 1.0 / pre openai 1.55) still
+# passed internally, causing "Client.__init__() got an unexpected keyword
+# argument 'proxies'" at construction time. These versions are confirmed fixed
+# and their API surface (Client(), generate_content(), chat.completions.create())
+# matches what this codebase calls.
+google-genai==2.20.0
+openai==1.109.1          # used as an OpenAI-compatible client for OpenRouter
+
+# API + UI
+# fastapi 0.115.0 imported starlette's HTTP_422_UNPROCESSABLE_ENTITY, which
+# newer Starlette renamed and deprecated — which is why a
+# StarletteDeprecationWarning traceback appeared on every app start even
+# though nothing in this codebase touches that constant. 0.121.x uses the
+# new name. Harmless noise, but it read like a real error in the terminal.
+fastapi==0.121.3
+uvicorn[standard]==0.34.0
+# Floor, not an exact pin: the app must run on whatever Streamlit is
+# already installed. The parameter meaning "fill the container" has been
+# renamed twice (use_column_width -> use_container_width -> width="stretch")
+# and each spelling is a hard error on versions that lack it, so
+# streamlit_app.py's `_stretch()` picks the right one from the installed
+# signature instead of this pin having to be exactly right.
+streamlit>=1.39.0
+
+# Rendering
+jinja2==3.1.4
+playwright==1.47.0
+markdown==3.7          # blog Markdown -> HTML preview rendering (see rendering/blog_renderer.py)
+
+# Images
+Pillow==10.4.0
+qrcode==8.2
+
+# Experiment tracking / evaluation
+mlflow==3.16.0
+
+# Testing
+pytest==8.3.3
+# font glyph checks (tests/brochure/test_fonts.py) and PDF page checks
+fonttools>=4.50
+brotli>=1.1
+pymupdf>=1.24
+pytest-mock==3.14.0
+httpx>=0.27  # needed by fastapi.testclient.TestClient (tests/unit/test_api_review.py)
+
+# Logging
+structlog==24.4.0
+
+# AI image generation.
+# The primary provider (Cloudflare Workers AI) and the fallback (OpenRouter)
+# are both plain HTTPS through `requests` — no SDK to keep current.
+requests>=2.31.0
+# Hugging Face is no longer the default (this project's account ran out of
+# monthly credits and every model began returning 402). Kept installed so
+# IMAGE_GEN_PROVIDER=huggingface still works for anyone who buys credits.
+huggingface_hub>=0.30.0
+
+# Blog research tools.
+# Everything else the research layer uses — OpenStreetMap, Wikipedia,
+# Google News, GDELT, search autocomplete — is a plain HTTPS call needing
+# no account and no package. This one is for keyless web search; without
+# it that single capability reports itself unavailable and the rest of
+# the research still runs.
+ddgs>=9.0.0
+
+# Supporting documents (PDF / Word) for the brochure
+pdfplumber>=0.11.0
+# Prepress: writes the press condition the print PDF is built for onto the
+# file itself (src/rendering/prepress.py). Optional at runtime — a missing
+# pikepdf costs the output intent and nothing else.
+pikepdf>=9.0.0
+python-docx>=1.1.0
+
+# Empty-space measurement in the layout audit
+numpy>=1.26

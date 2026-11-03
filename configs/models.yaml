@@ -1,0 +1,113 @@
+# Which provider/model each logical role uses.
+# Change these without touching any agent code.
+#
+# Four distinct Gemini model env vars are used across these roles
+# (GEMINI_TEXT_MODEL, GEMINI_VISION_MODEL, GEMINI_FAST_MODEL,
+# GEMINI_CRITIC_MODEL) — Gemini's free-tier daily quota is tracked per
+# (project, model), so this spreads calls across four independent
+# 20-requests/day buckets instead of stacking everything onto one or two.
+# vision and critic used to share GEMINI_VISION_MODEL, which meant a
+# single day's testing could exhaust one shared bucket with both photo
+# classification and evaluation calls competing for it — split apart here.
+
+roles:
+  property_intelligence:
+    provider: gemini
+    model_env: GEMINI_TEXT_MODEL
+
+  vision:
+    provider: gemini
+    model_env: GEMINI_VISION_MODEL
+    # To experiment with Google: Gemma 4 26B A4B (free) via OpenRouter for
+    # this role instead — confirmed real and multimodal (verified directly
+    # against OpenRouter's own listing, not assumed), released after this
+    # project's own knowledge cutoff, and available at no cost — swap the
+    # two lines above for:
+    #   provider: openrouter
+    #   model_env: OPENROUTER_VISION_MODEL   # set to google/gemma-4-26b-a4b-it:free in .env
+    # This is NOT the same caution as the fallback role's own model choice
+    # (see .env.example's note there about avoiding Gemma specifically
+    # for the FALLBACK): that note is about keeping the fallback
+    # infrastructurally distinct from the Gemini primary so a Gemini
+    # outage doesn't take the fallback down too. Using Gemma as vision's
+    # own PRIMARY doesn't have that problem — there's no diversity
+    # requirement for a primary role's own choice, only for what backs it
+    # up. What IS still true either way: this hasn't been run against a
+    # real generation here — no model API credentials are reachable from
+    # this project's own sandbox, so switching this is a real experiment
+    # to try with your own key, not a verified recommendation. Compare
+    # the Vision Agent's actual output (category/caption accuracy, and
+    # whether the "Expected N vision results" failure mode from
+    # src/agents/brochure/vision.py's docstring shows up more or less
+    # often) against a few of the same real photos on both models before
+    # committing to a switch.
+
+  copywriter:
+    provider: gemini
+    model_env: GEMINI_TEXT_MODEL
+
+  creative_director:
+    provider: gemini
+    model_env: GEMINI_FAST_MODEL
+
+  critic:
+    provider: gemini
+    model_env: GEMINI_CRITIC_MODEL
+
+  # Blog Generation roles (second solution) — spread across the same three
+  # model buckets as the brochure roles above, for the same quota-spreading
+  # reason (see README's "Free-tier API budgeting").
+  blog_planner:
+    provider: gemini
+    model_env: GEMINI_TEXT_MODEL
+
+  blog_writer:
+    provider: gemini
+    model_env: GEMINI_TEXT_MODEL
+
+  blog_seo:
+    provider: gemini
+    model_env: GEMINI_FAST_MODEL
+
+  blog_critic:
+    provider: gemini
+    model_env: GEMINI_CRITIC_MODEL
+
+  # Image Gap Analysis + blog Visual Director write image BRIEFS (text),
+  # not images — the images themselves come from src/models/image_gen.
+  # Text-only reasoning, so the fast model is enough.
+  image_gap:
+    provider: gemini
+    model_env: GEMINI_FAST_MODEL
+
+  visual_director:
+    provider: gemini
+    model_env: GEMINI_FAST_MODEL
+
+  # Narrative Director: reads the whole image inventory at once and
+  # decides the story arc. One call per generation, but it sets the
+  # shape of every page that follows, so it gets the reasoning model
+  # rather than the fast one.
+  narrative:
+    provider: gemini
+    model_env: GEMINI_TEXT_MODEL
+
+  # Blog Research Agent: one call per post, deciding which place to look
+  # up and which searches to run. Short output, but it sets what every
+  # later agent has to work with, so it gets the reasoning model.
+  blog_research:
+    provider: gemini
+    model_env: GEMINI_TEXT_MODEL
+
+  # Blog Fact Check Agent: reads the draft against the evidence and says
+  # which claims are supported. Judging rather than writing, so it shares
+  # the critic's model — and the critic's separate quota bucket, since the
+  # two run on the same post one after the other.
+  blog_fact_check:
+    provider: gemini
+    model_env: GEMINI_CRITIC_MODEL
+
+  # Used automatically if the primary provider errors out.
+  fallback:
+    provider: openrouter
+    model_env: OPENROUTER_MODEL

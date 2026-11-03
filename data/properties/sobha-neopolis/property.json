@@ -1,0 +1,89 @@
+{
+ "property_id": "SOBHA-NEOPOLIS",
+ "name": "SOBHA Neopolis",
+ "developer": "SOBHA Limited",
+ "location": {
+  "city": "Bengaluru",
+  "area": "Panathur, near Outer Ring Road (ORR)",
+  "address": null
+ },
+ "property_type": "Apartments",
+ "category": "luxury",
+ "price": null,
+ "unit_types": [
+  {
+   "name": "1 BHK",
+   "carpet_area": "660 sq.ft",
+   "price": ""
+  },
+  {
+   "name": "3 BHK",
+   "carpet_area": "1611 – 1915 sq.ft",
+   "price": ""
+  },
+  {
+   "name": "3 BHK + Study",
+   "carpet_area": "2150 – 2178 sq.ft",
+   "price": ""
+  },
+  {
+   "name": "4 BHK",
+   "carpet_area": "2333 – 2481 sq.ft",
+   "price": ""
+  }
+ ],
+ "usps": [
+  "Mainland Greek and Santorini-inspired classical architecture featuring arches, majestic columns, and bevelled pediments.",
+  "Sprawling 25+ acre layout featuring 78% open spaces and vehicle-free peripheral roads.",
+  "Three massive themed clubhouses spanning over 77,850 sq.ft.",
+  "Proximity to major tech hubs along the Outer Ring Road and upcoming Metro Phase 2A lines.",
+  "Built with SOBHA’s backward-integrated signature construction quality, ensuring 1,456 quality checks."
+ ],
+ "amenities": [
+  "Recreational: 3 lavish clubhouses (Club Santorini, Club Syros, Club Athinios), Meandering Pool, and Floating Deck.",
+  "Active Zone: Tennis Court, Basketball Court, Activity Field, Jogging Park, and Reflexology Walk.",
+  "Park & Plaza: Entrance Plaza with Clock Tower & telescope, Olympus Plaza, and BBQ & Picnic Park.",
+  "Kids' Zone: Aqua Park with water slides, Toddlers' Pad, and Skating Lane.",
+  "Indoor: Mini Theatre, Co-working Space, Salon & Spa, Gym, and Guest Rooms."
+ ],
+ "target_audience": "High-net-worth individuals, tech leaders working in the ORR/Whitefield IT corridor, and affluent families looking for a heavily-themed luxury Mediterranean-style community.",
+ "contact": {
+  "phone": "08046464500",
+  "email": null,
+  "website": "www.sobha.com"
+ },
+ "cta": "Visit the SOBHA Experience Center to explore the show residence and museum",
+ "tagline": "The Greek Paradise",
+ "possession": "December 2028",
+ "rera_number": null,
+ "project_size": "25 Acres, 19 Towers, 1,875 Units",
+ "landmarks": [
+  {
+   "name": "ORCHIDS The International School",
+   "distance": "2.5 km",
+   "category": "school"
+  },
+  {
+   "name": "Salarpuria Sattva Eminence",
+   "distance": "3.0 km",
+   "category": "tech park"
+  },
+  {
+   "name": "Prestige Tech Park / Cessna Business Park",
+   "distance": "3.5 km",
+   "category": "tech park"
+  },
+  {
+   "name": "Sakra World Hospital",
+   "distance": "4.5 km",
+   "category": "hospital"
+  },
+  {
+   "name": "RMZ Ecoworld / Ecospace",
+   "distance": "5.0 km",
+   "category": "tech park"
+  }
+ ],
+ "description": null,
+ "brand_color": null
+}

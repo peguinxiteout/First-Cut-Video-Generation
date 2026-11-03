@@ -1,0 +1,17 @@
+{# LOCATION — the map (whole) or a photograph, the places that matter with
+   their distances, and the connectivity argument. #}
+{% set d = page.data %}
+{{ m.images(page) }}
+{% if page.boxes.get('head') %}
+  {% call m.box(page, 'head') %}{{ m.head(page.words) }}{% if d.address %}<p class="addr">{{ icon('pin') }}<span>{{ d.address }}</span></p>{% endif %}{% endcall %}
+  {% call m.box(page, 'text') %}{% set rings = distance_rings(d.places) %}{% if rings %}<div class="rings">{{ rings }}</div>{% endif %}{{ m.places(d.places) }}{{ m.cards(page.words.cards) }}{% endcall %}
+{% else %}
+  {% call m.box(page, 'text') %}
+    <div class="col-head">{{ m.head(page.words) }}</div>
+    <div class="col-body">
+      {{ m.places(d.places) }}
+      {{ m.cards(page.words.cards) }}
+      {% if d.address %}<p class="addr">{{ icon('pin') }}<span>{{ d.address }}</span></p>{% endif %}
+    </div>
+  {% endcall %}
+{% endif %}

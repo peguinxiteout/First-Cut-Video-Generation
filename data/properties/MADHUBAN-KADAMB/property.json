@@ -1,0 +1,117 @@
+{
+ "property_id": "MADHUBAN-KADAMB",
+ "name": "Madhuban Kadamb",
+ "developer": "R. J. Parikh Developers LLP",
+ "location": {
+  "city": "Ahmedabad",
+  "area": "Near Ujala Circle, Sarkhej",
+  "address": null
+ },
+ "property_type": "Mixed-use",
+ "category": "affordable",
+ "price": "₹35 Lakh Onwards",
+ "unit_types": [
+  {
+   "name": "2 BHK",
+   "carpet_area": "1,169 sq.ft",
+   "price": ""
+  },
+  {
+   "name": "3 BHK",
+   "carpet_area": "1,500 sq.ft",
+   "price": ""
+  }
+ ],
+ "usps": [
+  "Designed for affordable green living with thoughtfully crafted homes that stay within budget without compromising comfort.",
+  "Mixed-use convenience featuring 13 dedicated retail shop spaces on the ground floor to support everyday resident needs.",
+  "Pre-installed Adani Gas Pipeline supply provided for every unit.",
+  "Heat-reflective china mosaic laid on all terraces to enhance cooling.",
+  "Built with an earthquake-resistant RCC frame design ensuring superior structural seismic safety."
+ ],
+ "amenities": [
+  "Temple, Chotaro (common sit-out), and landscaped garden spaces.",
+  "Jogging track, children's play area, and an outdoor amphitheater.",
+  "Equipped gymnasium, badminton court, and box cricket pitch.",
+  "Indoor game area including table tennis, plus a reading room and library.",
+  "Senior citizen's lounge, rooftop lounge, and yoga deck.",
+  "Community hall with kitchen, washroom, and store room.",
+  "EV-charging station, dedicated car wash area, and provision for stacked parking.",
+  "Gated premises with security cabin, CCTV surveillance, and fire safety systems."
+ ],
+ "target_audience": "First-time homebuyers, young professionals, and budget-conscious families looking for an affordable, community-centric, mixed-use lifestyle near the commercial and industrial zones of Sarkhej, Sanand, and Changodar.",
+ "contact": {
+  "phone": "9898557791",
+  "email": "madhuban@rjparikhdevelopers.com",
+  "website": "www.rjparikhdevelopers.com"
+ },
+ "cta": null,
+ "tagline": "A place where life feels just right",
+ "possession": "March 2028",
+ "rera_number": null,
+ "project_size": "14 Floors, 188 Residences, 13 Retail Spaces",
+ "landmarks": [
+  {
+   "name": "S.G. Highway",
+   "distance": "3 mins",
+   "category": "highway"
+  },
+  {
+   "name": "Ujala Circle",
+   "distance": "3 mins",
+   "category": "landmark / junction"
+  },
+  {
+   "name": "Sanand Chokdi",
+   "distance": "5 mins",
+   "category": "junction"
+  },
+  {
+   "name": "SP Ring Road",
+   "distance": "7 mins",
+   "category": "highway"
+  },
+  {
+   "name": "YMCA",
+   "distance": "7 mins",
+   "category": "lifestyle club"
+  },
+  {
+   "name": "LJ University",
+   "distance": "8 mins",
+   "category": "university"
+  },
+  {
+   "name": "Major Hospitals",
+   "distance": "<10 mins",
+   "category": "healthcare"
+  },
+  {
+   "name": "DAV School",
+   "distance": "10 mins",
+   "category": "school"
+  },
+  {
+   "name": "Cosmos Castle School",
+   "distance": "10 mins",
+   "category": "school"
+  },
+  {
+   "name": "Changodar S.E.Z.",
+   "distance": "10 mins",
+   "category": "industrial hub"
+  },
+  {
+   "name": "Vishala circle",
+   "distance": "10 mins",
+   "category": "landmark"
+  },
+  {
+   "name": "Iscon Temple",
+   "distance": "15 mins",
+   "category": "temple"
+  }
+ ],
+ "description": null,
+ "brand_color": null
+}

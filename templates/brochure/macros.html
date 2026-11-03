@@ -1,0 +1,130 @@
+{# Building blocks shared by every page template. #}
+
+{% macro pos(b) -%}
+left:{{ b.x | round(2) }}mm;top:{{ b.y | round(2) }}mm;width:{{ b.w | round(2) }}mm;height:{{ b.h | round(2) }}mm;
+{%- endmacro %}
+
+{# Every image of the page, in its slot. A photograph fills its slot at the
+   planned focal point; a drawing (plan, map) is shown whole on a card. #}
+{% macro vars(b) -%}
+--x:{{ b.x | round(2) }}mm;--y:{{ b.y | round(2) }}mm;--w:{{ b.w | round(2) }}mm;--h:{{ b.h | round(2) }}mm;
+{%- endmacro %}
+
+{% macro images(page, captions=False) -%}
+{% for p in page.images %}{% set uri = placed_uri(p) %}{% if uri %}
+<figure class="slot {{ p.kind }}{% for side in ['t','r','b','l'] %}{% if p.bleed[loop.index0] %} bleed-{{ side }}{% endif %}{% endfor %}" style="{{ vars(p) }}" data-slot="{{ p.slot }}">
+  <img src="{{ uri }}" alt="" data-img="{{ p.image_id }}" data-kind="{{ p.kind }}" style="object-position: {{ p.position }};">
+  {% if p.kind == 'plan' and (p.label or p.sublabel) %}
+  <figcaption><span class="keep">{{ p.label }}</span>{% if p.sublabel %}<span class="keep num">{{ p.sublabel }}</span>{% endif %}</figcaption>
+  {% elif captions and caption_for(p.image_id) %}
+  <figcaption class="tag">{{ caption_for(p.image_id) }}</figcaption>
+  {% endif %}
+</figure>
+{% endif %}{% endfor %}
+{%- endmacro %}
+
+{% macro box(page, name, cls='') -%}
+{% set b = page.boxes.get(name) %}{% if b %}
+<div class="box {{ name }} {{ cls }}{{ ' wide' if b.w >= 150 }}" data-fit="{{ name }}" style="{{ pos(b) }}">{{ caller() }}</div>
+{% endif %}
+{%- endmacro %}
+
+{% macro head(w, level='h1', lead=True) -%}
+{% if w.kicker %}<div class="kicker">{{ w.kicker }}</div>{% endif %}
+{% if w.title %}<{{ level }} class="title">{{ w.title }}</{{ level }}>{% endif %}
+<span class="rule" aria-hidden="true"></span>
+{% if lead and w.lead %}<p class="lead">{{ w.lead | nobreak }}</p>{% endif %}
+{%- endmacro %}
+
+{% macro body(w) -%}
+{% if w.body %}<div class="body">{% for para in w.body %}<p>{{ para | nobreak }}</p>{% endfor %}</div>{% endif %}
+{%- endmacro %}
+
+{% macro cards(list, numbered=False, show_values=True) -%}
+{% if list %}
+<ol class="cards n{{ list | length }}{{ ' numbered' if numbered }}">
+{% for c in list %}
+  <li class="card">
+    <span class="ic-wrap">{% if numbered %}<span class="num-mark">{{ '%02d' | format(loop.index) }}</span>{% else %}{{ icon(c.icon or 'star') }}{% endif %}</span>
+    <div class="card-text">{% if c.value and show_values %}<div class="card-fig num keep">{{ c.value }}</div>{% endif %}<h3>{{ c.title | nobreak }}</h3>{% if c.text %}<p>{{ c.text | nobreak }}</p>{% endif %}</div>
+  </li>
+{% endfor %}
+</ol>
+{% endif %}
+{%- endmacro %}
+
+{% macro figures(list, cls='') -%}
+{% if list %}
+<dl class="figures {{ cls }} n{{ list | length }}">
+{% for f in list %}<div class="fig{{ ' long' if f.value | length > 6 }}"><dt class="num keep">{{ f.value | nobreak }}</dt><dd>{{ f.unit or f.label }}</dd></div>{% endfor %}
+</dl>
+{% endif %}
+{%- endmacro %}
+
+{% macro stats(list) -%}
+{% if list %}
+<dl class="stats n{{ list | length }}">
+{% for s in list %}<div class="stat"><dt class="num keep">{{ s.value }}</dt><dd>{{ s.label | capitalize_first }}</dd></div>{% endfor %}
+</dl>
+{% endif %}
+{%- endmacro %}
+
+{% macro zones(list) -%}
+<div class="zones n{{ list | length }}">
+{% for z in list %}
+  <section class="zone">
+    <h3>{{ icon(z.icon or 'star') }}<span>{{ z.title }}</span></h3>
+    <ul>{% for item in z['items'] %}<li>{{ item | nobreak }}</li>{% endfor %}</ul>
+  </section>
+{% endfor %}
+</div>
+{%- endmacro %}
+
+{% macro units(list, show_price) -%}
+<table class="units{{ ' priced' if show_price }}">
+  <thead><tr><th>Residence</th><th class="r">Carpet area</th>{% if show_price %}<th class="r">Price</th>{% endif %}</tr></thead>
+  <tbody>
+  {% for u in list %}
+    <tr><td><span class="keep u-name">{{ u.label }}</span>{% if u.detail %}<span class="keep u-detail">{{ u.detail }}</span>{% endif %}</td>
+        <td class="r num keep">{{ u.area }}</td>{% if show_price %}<td class="r num keep price">{{ u.price }}</td>{% endif %}</tr>
+  {% endfor %}
+  </tbody>
+</table>
+{%- endmacro %}
+
+{% macro places(list) -%}
+<ul class="places">
+{% for p in list %}
+  <li><span class="ic-wrap">{{ icon(p.icon or 'pin') }}</span><span class="p-name">{{ p.name | nobreak }}</span>{% if p.distance %}<span class="dist keep num">{{ p.distance }}</span>{% endif %}</li>
+{% endfor %}
+</ul>
+{%- endmacro %}
+
+{% macro logo(cls='', dark=False) -%}
+{% set uri = image_uri(book.logo) %}
+{% if uri %}<div class="logo {{ cls }}{{ ' plate' if dark and logo_needs_plate }}"><img src="{{ uri }}" alt="{{ content.developer }}"></div>
+{% elif content.developer %}<div class="logo word {{ cls }}">{{ content.developer }}</div>{% endif %}
+{%- endmacro %}
+
+{% macro ornament(kind='diamond') -%}
+<svg class="orn" viewBox="0 0 40 8" aria-hidden="true"><path d="M0 4h15M25 4h15" stroke="currentColor" stroke-width=".6"/><path d="M20 0.8L23.2 4 20 7.2 16.8 4z" fill="currentColor"/></svg>
+{%- endmacro %}
+
+{% macro folio(page) -%}
+<footer class="folio">
+  <span class="folio-n num">{{ '%02d' | format(page.number) }}</span>
+  {% if book.category != 'luxury' %}<span class="folio-name">{{ content.name }}</span>{% endif %}
+</footer>
+{%- endmacro %}
+
+{% macro contact(d, qr) -%}
+<div class="contact">
+  <div class="c-lines">
+    {% if d.phone %}<div class="phone num keep">{{ icon('phone') }}<span>{{ d.phone }}</span></div>{% endif %}
+    {% if d.email %}<div class="c-line">{{ icon('mail') }}<span>{{ d.email }}</span></div>{% endif %}
+    {% if d.website %}<div class="c-line">{{ icon('web') }}<span>{{ d.website }}</span></div>{% endif %}
+    {% if d.address %}<div class="c-line">{{ icon('pin') }}<span>{{ d.address }}</span></div>{% endif %}
+  </div>
+  {% if qr %}<div class="qr"><img src="{{ qr }}" alt="QR code to {{ d.website }}"><span>Scan to visit</span></div>{% endif %}
+</div>
+{%- endmacro %}

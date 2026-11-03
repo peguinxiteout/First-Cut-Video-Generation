@@ -1,0 +1,105 @@
+{
+ "property_id": "BRIGADE-CITRINE",
+ "name": "Brigade Citrine",
+ "developer": "Brigade Enterprises Ltd",
+ "location": {
+  "city": "Bengaluru",
+  "area": "Old Madras Road",
+  "address": null
+ },
+ "property_type": "Apartments",
+ "category": "mid",
+ "price": "₹80 Lakh onwards",
+ "unit_types": [
+  {
+   "name": "1 Bed + 1 Toilet",
+   "carpet_area": "434.86 sq.ft",
+   "price": ""
+  },
+  {
+   "name": "2 Bed + 2 Toilet",
+   "carpet_area": "811.49 sq.ft",
+   "price": ""
+  },
+  {
+   "name": "3 Bed + 2 Toilet",
+   "carpet_area": "1017.62 sq.ft",
+   "price": ""
+  },
+  {
+   "name": "3 Bed + 3 Toilet",
+   "carpet_area": "1117.62 sq.ft",
+   "price": ""
+  },
+  {
+   "name": "3 Bed + 3 Toilet + Study",
+   "carpet_area": "1270.04 sq.ft",
+   "price": ""
+  },
+  {
+   "name": "4 Bed + 4 Toilet",
+   "carpet_area": "1540.22 sq.ft",
+   "price": ""
+  }
+ ],
+ "usps": [
+  "India's first completely Net Zero Residential Community (Net Zero Carbon, Energy, Water, and Waste).",
+  "Strict privacy design: Across all 420 units, zero homes face each other.",
+  "100% of common area lighting is powered directly by renewable solar energy.",
+  "Eco-conscious architecture diverts up to 300 tonnes of waste from landfills annually (86% diversion rate).",
+  "Strategic Old Madras Road location offering equidistant access to Whitefield, CBD, and Kempegowda Airport."
+ ],
+ "amenities": [
+  "Swimming Pool and dedicated Kids' Pool.",
+  "Multi-play Court and Outdoor Fitness Area.",
+  "Wellness Garden and Pet Park.",
+  "Lavish Clubhouse with indoor spaces for meals and connections.",
+  "100% DG backup for both common areas and residential units.",
+  "Smart water management yielding up to a 46.5% reduction in external fresh water demand."
+ ],
+ "target_audience": "Environmentally conscious professionals, tech workers traversing the Whitefield-Airport corridors, and families seeking a carbon-neutral, ultra-private luxury lifestyle.",
+ "contact": {
+  "phone": "+91 91376 11941",
+  "email": null,
+  "website": "www.brigadegroup.com"
+ },
+ "cta": null,
+ "tagline": "Building Positive Experiences / For Earth. For Life!",
+ "possession": "June 2029",
+ "rera_number": null,
+ "project_size": "4.3 Acres, 420 Units",
+ "landmarks": [
+  {
+   "name": "Orion Uptown Mall",
+   "distance": "Proximity",
+   "category": "mall"
+  },
+  {
+   "name": "Holiday Inn Express Hotel",
+   "distance": "Proximity",
+   "category": "hotel"
+  },
+  {
+   "name": "Decathlon",
+   "distance": "Proximity",
+   "category": "retail"
+  },
+  {
+   "name": "VIBGYOR High School",
+   "distance": "Proximity",
+   "category": "school"
+  },
+  {
+   "name": "East Point Hospital",
+   "distance": "Proximity",
+   "category": "hospital"
+  },
+  {
+   "name": "ITPL / EPIP Zone Whitefield",
+   "distance": "Proximity",
+   "category": "tech park"
+  }
+ ],
+ "description": null,
+ "brand_color": null
+}
