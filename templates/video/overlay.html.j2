@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+{{ font_face_css|safe }}
+html, body { margin: 0; padding: 0; background: transparent; width: {{ width }}px; height: {{ height }}px; overflow: hidden; }
+* { box-sizing: border-box; }
+.frame { position: relative; width: {{ width }}px; height: {{ height }}px; font-family: {{ body_stack|safe }}; font-weight: 500; color: #fff; }
+.scrim { position: absolute; left: 0; right: 0; bottom: 0; height: 46%; background: linear-gradient(to top, rgba(0,0,0,.66), rgba(0,0,0,0)); }
+.safe { position: absolute; left: {{ x0 }}px; top: {{ y0 }}px; width: {{ x1 - x0 }}px; height: {{ y1 - y0 }}px; display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-start; gap: {{ s(20) }}px; }
+.safe.card { justify-content: flex-start; align-items: center; text-align: center; padding-top: {{ card_top }}px; gap: {{ s(26) }}px; }
+.t { display: inline-block; max-width: 100%; }
+.heading { font-family: {{ heading_stack|safe }}; font-weight: 600; font-size: {{ s(92) }}px; line-height: 1.04; letter-spacing: -0.01em; text-shadow: 0 {{ s(3) }}px {{ s(18) }}px rgba(0,0,0,.45); }
+.sub { font-size: {{ s(50) }}px; line-height: 1.2; color: {{ p.accent_ink if p.accent_ink else '#fff' }}; background: {{ p.accent }}; padding: {{ s(8) }}px {{ s(22) }}px; border-radius: {{ s(6) }}px; }
+.chip { font-size: {{ s(44) }}px; line-height: 1.15; font-weight: 600; color: {{ p.accent_ink if p.accent_ink else '#fff' }}; background: {{ p.accent }}; padding: {{ s(12) }}px {{ s(30) }}px; border-radius: {{ s(60) }}px; }
+.chips { display: flex; flex-direction: column; align-items: flex-start; gap: {{ s(14) }}px; }
+.wordmark { font-family: {{ heading_stack|safe }}; font-weight: 600; font-size: {{ s(84) }}px; line-height: 1.05; color: {{ p.on_dark }}; }
+.cta { font-size: {{ s(62) }}px; line-height: 1.1; font-weight: 600; color: {{ p.accent_ink if p.accent_ink else '#fff' }}; background: {{ p.accent }}; padding: {{ s(20) }}px {{ s(54) }}px; border-radius: {{ s(80) }}px; }
+.legal { font-size: {{ s(36) }}px; line-height: 1.25; color: {{ p.on_dark_soft }}; letter-spacing: .04em; }
+.contact { font-size: {{ s(46) }}px; line-height: 1.25; color: {{ p.on_dark }}; }
+</style>
+</head>
+<body>
+<div class="frame">
+{% if kind == 'title' %}
+  <div class="scrim"></div>
+  <div class="safe">
+    {% if chips %}<div class="chips">{% for chip in chips %}<span class="t chip" data-safe>{{ chip }}</span>{% endfor %}</div>{% endif %}
+    {% if sub %}{% for line in sub %}<span class="t sub" data-safe>{{ line }}</span>{% endfor %}{% endif %}
+    {% if heading %}<span class="t heading" data-safe>{{ heading }}</span>{% endif %}
+  </div>
+{% else %}
+  <div class="safe card">
+    {% if not has_logo and heading %}<span class="t wordmark" data-safe>{{ heading }}</span>{% endif %}
+    {% if cta %}<span class="t cta" data-safe>{{ cta }}</span>{% endif %}
+    {% for line in legal %}<span class="t legal" data-safe>{{ line }}</span>{% endfor %}
+    {% for line in contact %}<span class="t contact" data-safe>{{ line }}</span>{% endfor %}
+  </div>
+{% endif %}
+</div>
+</body>
+</html>
