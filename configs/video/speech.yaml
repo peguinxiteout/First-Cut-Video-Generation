@@ -1,0 +1,28 @@
+# Narration. The chain is tried in order and the first provider that can
+# speak wins; "silent" never fails, so a run always has a track to time to.
+#
+#   gemini    Gemini TTS over REST (needs GEMINI_API_KEY)
+#   offline   a voice on this machine: Windows SAPI, or espeak-ng if it is on PATH
+#   silent    a silent track as long as the line takes to say (captions carry it)
+#
+# Model, default voice and the provider choice come from Settings
+# (GEMINI_TTS_MODEL, GEMINI_TTS_VOICE, SPEECH_PROVIDER).
+chain: [gemini, offline, silent]
+
+# A natural pace for a promotional read. Sets how long a silent track is, and
+# is the figure the script's word budget is built on.
+words_per_second: 2.1
+
+gemini:
+  url: https://generativelanguage.googleapis.com/v1beta/interactions
+  sample_rate: 24000
+  style: "brisk, confident real estate ad narrator, fast pace, upbeat, no long pauses"
+
+# VideoInput.voice picks one of these. Each names what to ask each provider
+# for; null leaves that provider on its own default (for gemini, GEMINI_TTS_VOICE).
+default_voice: default
+voices:
+  default:
+    label: "Professional, Indian English"
+    gemini: null
+    offline: female
