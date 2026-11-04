@@ -1,0 +1,122 @@
+# The offline script: frames filled ONLY from the property's own facts.
+#
+# A frame is a sentence with {slots}. It is skipped when a slot it names is
+# empty, or when a leading condition fails: [has:pool] (an amenity zone),
+# [kw:vastu|garden] (a word in the selling points), [claim:green] (a claim
+# topic). Slots are those of src/agents/brochure/copywriter.slots (name,
+# short, place, locality, city, config, noun_lc, developer, possession,
+# price, area, ...) plus:
+#
+#   cta         the call to action, as it is said and printed
+#   item_list   up to three items of one amenity zone: "swimming pool and splash pool"
+#
+# Frames listed together are alternatives: the first that fills and passes
+# the guard is used, starting from a point that depends on the property's
+# name so two projects do not read alike. The guard (agents/video/guard.py)
+# then rejects any figure that is not in the property's facts.
+
+# The lines of a video, by length in seconds. hook opens, feature and proof
+# are the body, cta closes (spoken over the end card).
+structure:
+  10: [hook, feature, cta]
+  15: [hook, feature, feature, cta]
+  30: [hook, feature, feature, feature, proof, cta]
+  45: [hook, feature, feature, feature, feature, proof, proof, cta]
+  60: [hook, feature, feature, feature, feature, feature, proof, proof, cta]
+
+# What a person is asked to do, when they did not say.
+cta_defaults:
+  awareness: "Discover more"
+  site_visit: "Book a site visit"
+  launch: "Register your interest"
+  enquiry: "Enquire now"
+
+# How far a script may miss its word budget before it is trimmed or padded.
+word_tolerance: 0.10
+
+tones:
+  warm:
+    hook:
+      awareness:
+        - "Welcome to {short}."
+        - "Meet {short}, in {city}."
+        - "Say hello to {short}."
+      site_visit:
+        - "Come and see {short} for yourself."
+        - "Your next home is at {short}."
+      launch:
+        - "Introducing {short}, in {city}."
+        - "Introducing {short}."
+      enquiry:
+        - "Looking for a home in {locality}?"
+        - "Looking for {noun_lc} in {city}?"
+    zone:
+      - "On site: {item_list}."
+      - "Right at home: {item_list}."
+      - "{item_list}, all on site."
+    proof:
+      - "{config} {noun_lc} at {place}."
+      - "Possession in {possession}."
+      - "Prices from {price}."
+      - "Built by {developer}."
+    cta:
+      awareness: ["{cta}.", "{cta} at {short}."]
+      site_visit: ["{cta} today.", "{cta} at {short}."]
+      launch: ["{cta}.", "{cta} today."]
+      enquiry: ["{cta} today.", "{cta}."]
+
+  confident:
+    hook:
+      awareness:
+        - "{short}. {city}."
+        - "This is {short}."
+      site_visit:
+        - "See {short} in person."
+        - "{short}. See it for yourself."
+      launch:
+        - "{short} is here."
+        - "Introducing {short}."
+      enquiry:
+        - "Looking in {locality}? Start with {short}."
+        - "Looking for {noun_lc} in {city}? Start here."
+    zone:
+      - "{item_list}. All on site."
+      - "Inside the gates: {item_list}."
+      - "On site: {item_list}."
+    proof:
+      - "{config} {noun_lc} at {place}."
+      - "Possession: {possession}."
+      - "Prices from {price}."
+      - "From {developer}."
+    cta:
+      awareness: ["{cta}."]
+      site_visit: ["{cta}. Today.", "{cta} now."]
+      launch: ["{cta} now.", "{cta}."]
+      enquiry: ["{cta} now.", "{cta}."]
+
+  refined:
+    hook:
+      awareness:
+        - "{short}. An address in {city}."
+        - "Welcome to {short}."
+      site_visit:
+        - "Experience {short} in person."
+        - "An invitation to see {short}."
+      launch:
+        - "Introducing {short}."
+        - "Presenting {short}, in {city}."
+      enquiry:
+        - "{short}, {locality}."
+        - "Discover {short}."
+    zone:
+      - "{item_list}, within the gates."
+      - "On site: {item_list}."
+    proof:
+      - "{config} {noun_lc} at {place}."
+      - "Possession in {possession}."
+      - "{developer}."
+    cta:
+      awareness: ["{cta}."]
+      site_visit: ["{cta}."]
+      launch: ["{cta}."]
+      enquiry: ["{cta}."]
