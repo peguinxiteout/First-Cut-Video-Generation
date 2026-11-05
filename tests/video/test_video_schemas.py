@@ -5,7 +5,7 @@ from pydantic import ValidationError
 
 from src.data.video_schemas import (
     ClipResult, LineTiming, Shot, Storyboard, VideoBrief, VideoEvaluationResult, VideoGenerationRecord,
-    VideoGate, VideoInput, VideoScript,
+    VideoGate, VideoInput, VideoRequest, VideoScript,
 )
 
 
@@ -76,3 +76,24 @@ def test_the_record_round_trips_through_json():
         clips=[ClipResult(shot_index=0, provider="kenburns", cost_usd=0.0)], providers_used={"kenburns": 1})
     back = VideoGenerationRecord.model_validate_json(record.model_dump_json())
     assert back == record
+
+
+def test_a_request_from_the_form_has_no_prompt_and_stops_for_approval():
+    request = VideoRequest(property_id="P1")
+    assert request.auto_approve is False
+    assert (request.prompt, request.brief_source, request.brief_notes) == ("", "", [])
+
+
+def test_a_request_saved_before_the_prompt_fields_existed_still_loads():
+    old = '{"property_id": "P1", "overrides": {"duration_s": 10}, "offline": true, "draft": false, "refresh_ledger": false}'
+    request = VideoRequest.model_validate_json(old)
+    assert request.offline is True and request.overrides == {"duration_s": 10}
+    assert request.auto_approve is False and request.prompt == "" and request.brief_notes == []
+
+
+def test_the_prompt_and_what_was_made_of_it_round_trip_on_the_record():
+    request = VideoRequest(property_id="P1", auto_approve=True, prompt="A calm 30 second reel", brief_source="rules",
+                           brief_notes=["Length 30 s from the prompt."])
+    record = VideoGenerationRecord(video_id="vid_abc123def0", property_id="P1", status="planning", request=request)
+    back = VideoGenerationRecord.model_validate_json(record.model_dump_json())
+    assert back.request == request and back.request.prompt == "A calm 30 second reel"

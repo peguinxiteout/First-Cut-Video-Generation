@@ -251,27 +251,51 @@ def test_the_form_starts_from_the_property_file(folder):
     assert at.checkbox(key=_key("burn_captions")).value is False and at.checkbox(key=_key("grade")).value is True
 
 
-def test_the_model_selector_lists_every_option_and_disables_the_unavailable(folder):
+def _rows(at) -> dict[str, str]:
+    """The "not available yet" rows of the model list, by the label each starts with."""
+    rows = [str(c.value) for c in at.caption if " · not available yet" in str(c.value)]
+    return {row.split(" · ")[0]: row for row in rows}
+
+
+def test_the_model_selector_offers_what_can_run_and_lists_the_rest_as_not_available_yet(folder):
     at = _app().run()
 
     radio = at.radio(key=_key("model"))
     assert radio.options[0].startswith("Auto") and radio.value == "auto"
     assert len(radio.options) == 2 and radio.options[1].startswith("Pan-and-zoom") and "free" in radio.options[1]
-    disabled = {c.key: c for c in at.checkbox if c.key and c.key.startswith("vt_na_")}
-    assert set(disabled) == {"vt_na_minimax_h3_max", "vt_na_kling_25_turbo_pro", "vt_na_seedance_2"}
-    for box in disabled.values():
-        assert box.disabled and box.value is False and "not available yet" in box.label
-    assert "$0.45" in disabled["vt_na_minimax_h3_max"].label                      # 0.03 a second, 15 seconds
-    assert "price not set" in disabled["vt_na_seedance_2"].label
+    assert not [c for c in at.checkbox if c.key and c.key.startswith("vt_na_")]          # text rows, not boxes
+    assert "**Not available yet**" in [str(m.value) for m in at.markdown]
+    rows = _rows(at)
+    assert list(rows) == ["MiniMax H3 Max", "Kling 2.5 Turbo Pro", "Seedance 2.0", "Magic Hour Wan 2.2 I2V",
+                          "8Scale Wan 2.2 14B I2V", "Nodaro Seedance 2 Fast", "Nodaro Veo 3.1 Lite",
+                          "Eternal AI Wan 2.2 I2V"]
+    assert "via fal.ai" in rows["MiniMax H3 Max"] and "about $0.45" in rows["MiniMax H3 Max"]    # 0.03 a second, 15 s
+    assert "price not set" in rows["Seedance 2.0"]
     assert at.radio(key=_key("model")).disabled is False
     at.checkbox(key=_key("offline")).check().run()
     assert at.radio(key=_key("model")).disabled is True
 
 
+def test_a_row_names_the_estimate_the_free_tier_and_what_to_watch_for(folder):
+    rows = _rows(_app().run())
+
+    assert rows["Magic Hour Wan 2.2 I2V"] == ("Magic Hour Wan 2.2 I2V · not available yet · credit-based · "
+                                              "free signup credits · price unverified")
+    assert rows["Nodaro Seedance 2 Fast"] == ("Nodaro Seedance 2 Fast · not available yet · credit-based · "
+                                              "free tier up to 4 s at the lowest resolution · "
+                                              "free tier watermarked · price unverified")
+    assert rows["8Scale Wan 2.2 14B I2V"] == ("8Scale Wan 2.2 14B I2V · not available yet · from about $0.05 · "
+                                              "10 free generations · price unverified")
+    assert rows["Eternal AI Wan 2.2 I2V"] == ("Eternal AI Wan 2.2 I2V · not available yet · from about $0.08 · "
+                                              "$2 signup credits · price unverified")
+
+
 def test_a_longer_video_is_estimated_longer(folder):
     at = _app().run()
     at.selectbox(key=_key("duration_s")).select(60).run()
-    assert "$1.80" in [c for c in at.checkbox if c.key == "vt_na_minimax_h3_max"][0].label
+    rows = _rows(at)
+    assert "about $1.80" in rows["MiniMax H3 Max"]
+    assert "from about $0.20" in rows["8Scale Wan 2.2 14B I2V"] and "from about $0.30" in rows["Eternal AI Wan 2.2 I2V"]
     assert "have not been rendered" in _shown(at)
 
 

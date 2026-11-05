@@ -76,6 +76,13 @@ def _store(path: Path, knowledge: PropertyKnowledge, model: str, version: str) -
         logger.warning("The ledger could not be cached: %s", exc)
 
 
+def cached(prop: PropertyInput, documents_text: str, directory: Optional[Path] = None) -> Optional[PropertyKnowledge]:
+    """The ledger kept for this property, documents, model and prompt, or None. Never asks a model."""
+    path = (directory if directory is not None else cache_dir()) /         f"{cache_key(prop, documents_text, model_name(), prompt_version())}.json"
+    hit = _load(path) if path.exists() else None
+    return hit[0] if hit else None
+
+
 def run(prop: PropertyInput, documents_text: str, offline: bool, *, refresh: bool = False,
         directory: Optional[Path] = None) -> tuple[PropertyKnowledge, list[str]]:
     """The ledger, and what to tell the person about how it was made."""

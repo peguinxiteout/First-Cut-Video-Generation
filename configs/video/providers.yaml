@@ -12,6 +12,18 @@
 #   hidden                     kept out of the selector (tests, development)
 #   endpoint, params           handed to the adapter as written
 #
+# What the selector shows about a vendor's model (no adapter reads these):
+#   vendor, model_id           who sells it and what it is called
+#   cost_basis                 per_second | per_clip | credits (credits: no dollar estimate)
+#   cost_per_clip, clip_s      a clip price and its length, when the vendor prices a clip
+#                              (the estimate is the price over the length times the video's seconds)
+#   cost_by_resolution         the rate at each resolution, for the reader
+#   price_from                 true: cost_per_second is the lowest tier, shown as "from"
+#   free_tier                  what the free tier gives, in words
+#   watermark_free_tier        the free tier's clips carry a watermark and cannot be used
+#   verified, price_source     verified: false = the price was given to us, not checked against
+#                              the vendor; price_source says by whom and when
+#
 # pan-and-zoom (kenburns) is the last link of every chain. It needs no key
 # and is never chosen by Auto as a "model".
 
@@ -43,6 +55,7 @@ providers:
   # The endpoint ids are placeholders to be filled in from fal's model pages.
   minimax_h3_max:
     label: "MiniMax H3 Max"
+    vendor: "fal.ai"
     adapter: fal
     endpoint: TODO
     key_env: FAL_KEY
@@ -53,6 +66,7 @@ providers:
 
   kling_25_turbo_pro:
     label: "Kling 2.5 Turbo Pro"
+    vendor: "fal.ai"
     adapter: fal
     endpoint: TODO
     key_env: FAL_KEY
@@ -64,6 +78,7 @@ providers:
   # Premium: chosen by name, not by Auto. Price not set yet.
   seedance_2:
     label: "Seedance 2.0"
+    vendor: "fal.ai"
     adapter: fal
     endpoint: TODO
     key_env: FAL_KEY
@@ -71,3 +86,80 @@ providers:
     cost_per_second: null
     max_duration_s: 10
     supports_first_last_frame: true
+
+  # Image-to-video models from other vendors, listed so the choice is visible. None has an
+  # adapter yet, so each shows as unavailable ("not available yet") and Auto never picks one.
+  # Every price and allowance below was given to us on 5 Nov 2026 and has not been checked
+  # against the vendor (verified: false). model_id is the model's name as given; the vendor's
+  # API id is set with the adapter. Max clip length is left at the default where it was not given.
+  magic_hour_wan22_i2v:
+    label: "Magic Hour Wan 2.2 I2V"
+    vendor: "Magic Hour"
+    model_id: "Wan 2.2 I2V"
+    adapter: magic_hour
+    key_env: MAGIC_HOUR_API_KEY
+    auto_priority: null
+    cost_basis: credits
+    free_tier: "free signup credits"
+    verified: false
+    price_source: "given by owner, 5 Nov 2026"
+
+  eightscale_wan22_14b_i2v:
+    label: "8Scale Wan 2.2 14B I2V"
+    vendor: "8Scale"
+    model_id: "Wan 2.2 14B I2V"
+    adapter: eightscale
+    key_env: EIGHTSCALE_API_KEY
+    auto_priority: null
+    cost_basis: per_clip
+    cost_per_clip: 0.01
+    clip_s: 3
+    price_from: true
+    free_tier: "10 free generations"
+    verified: false
+    price_source: "given by owner, 5 Nov 2026"
+
+  # Free tier: watermarked, up to 4 s, lowest resolution. The paid clip length was not given.
+  nodaro_seedance_2_fast:
+    label: "Nodaro Seedance 2 Fast"
+    vendor: "Nodaro"
+    model_id: "Seedance 2 Fast"
+    adapter: nodaro
+    key_env: NODARO_API_KEY
+    auto_priority: null
+    cost_basis: credits
+    max_duration_s: 4
+    free_tier: "free tier up to 4 s at the lowest resolution"
+    watermark_free_tier: true
+    verified: false
+    price_source: "given by owner, 5 Nov 2026"
+
+  nodaro_veo_31_lite:
+    label: "Nodaro Veo 3.1 Lite"
+    vendor: "Nodaro"
+    model_id: "Veo 3.1 Lite"
+    adapter: nodaro
+    key_env: NODARO_API_KEY
+    auto_priority: null
+    cost_basis: credits
+    max_duration_s: 4
+    free_tier: "free tier up to 4 s at the lowest resolution"
+    watermark_free_tier: true
+    verified: false
+    price_source: "given by owner, 5 Nov 2026"
+
+  # cost_per_second is the 480p rate; 720p is in cost_by_resolution.
+  eternal_ai_wan22_i2v:
+    label: "Eternal AI Wan 2.2 I2V"
+    vendor: "Eternal AI"
+    model_id: "Wan 2.2 I2V"
+    adapter: eternal_ai
+    key_env: ETERNAL_AI_API_KEY
+    auto_priority: null
+    cost_basis: per_second
+    cost_per_second: 0.005
+    cost_by_resolution: {480p: 0.005, 720p: 0.015}
+    price_from: true
+    free_tier: "$2 signup credits"
+    verified: false
+    price_source: "given by owner, 5 Nov 2026"

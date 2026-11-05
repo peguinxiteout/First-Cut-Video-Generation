@@ -48,6 +48,17 @@ def number_words(text: str) -> set[str]:
     return {w.lower() for w in _WORD.findall(text)}
 
 
+def unknown_figure(text: str, known_figures: set[str], known_words: set[str]) -> str:
+    """The first figure (a digit run or a number word) in the text that is not among the known
+    ones, or ""."""
+    for token in sorted(figures(text) - known_figures):
+        return token
+    for word in sorted(number_words(text) - known_words):
+        if str(_WORDS[word]) not in known_figures:
+            return word
+    return ""
+
+
 class VideoGuard(Guard):
     def __init__(self, prop, knowledge, content, positioning):
         super().__init__(prop, content, positioning)
@@ -59,12 +70,7 @@ class VideoGuard(Guard):
 
     def unknown_figure(self, text: str) -> str:
         """The first figure in the text that is not a fact, or ""."""
-        for token in sorted(figures(text) - self.known_figures):
-            return token
-        for word in sorted(number_words(text) - self.known_words):
-            if str(_WORDS[word]) not in self.known_figures:
-                return word
-        return ""
+        return unknown_figure(text, self.known_figures, self.known_words)
 
     def numbers_ok(self, text: str) -> bool:
         return not self.unknown_figure(text)

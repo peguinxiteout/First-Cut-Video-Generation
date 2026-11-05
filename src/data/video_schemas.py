@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from src.data.schemas import HumanReview, ImageAnalysis, PropertyInput, PropertyKnowledge, WorkflowEvaluation
 
@@ -96,6 +96,48 @@ class VideoInput(BaseModel):
     @classmethod
     def _pronunciations(cls, value: dict[str, str]) -> dict[str, str]:
         return {k.strip(): str(v).strip() for k, v in value.items() if k.strip() and str(v).strip()}
+
+
+class PromptBrief(BaseModel):
+    """What a free-text prompt sets (the Video tab's prompt box): the options of VideoInput it
+    can steer, each None when the prompt does not say it. Length and shape come from rules only.
+    The voice, the opening picture, generated frames and the grade are not here: a prompt never
+    sets them (a key a model sends for one is ignored)."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    duration_s: Optional[int] = None
+    aspect: Optional[str] = None
+    objective: Optional[str] = None
+    audience: Optional[str] = None
+    highlights: Optional[list[str]] = None
+    tone: Optional[str] = None
+    music_mood: Optional[str] = None
+    cta: Optional[str] = None
+    creative_direction: Optional[str] = None
+    burn_captions: Optional[bool] = None
+    pronunciations: Optional[dict[str, str]] = None
+
+    @field_validator("duration_s")
+    @classmethod
+    def _duration(cls, value: Optional[int]) -> Optional[int]:
+        if value is not None and value not in VIDEO_DURATIONS:
+            raise ValueError(f"duration_s must be one of {list(VIDEO_DURATIONS)}, got {value}")
+        return value
+
+    @field_validator("aspect")
+    @classmethod
+    def _aspect(cls, value: Optional[str]) -> Optional[str]:
+        if value is not None and value not in VIDEO_ASPECTS:
+            raise ValueError(f"aspect must be one of {list(VIDEO_ASPECTS)}, got {value!r}")
+        return value
+
+    @field_validator("objective")
+    @classmethod
+    def _objective(cls, value: Optional[str]) -> Optional[str]:
+        if value is not None and value not in VIDEO_OBJECTIVES:
+            raise ValueError(f"objective must be one of {list(VIDEO_OBJECTIVES)}, got {value!r}")
+        return value
 
 
 # ---------------------------------------------------------------------------
@@ -390,6 +432,13 @@ class VideoRequest(BaseModel):
     offline: bool = False
     draft: bool = False
     refresh_ledger: bool = False
+    # True: plan and produce in one job, with no stop for approval (the Video tab's Plan toggle off).
+    auto_approve: bool = False
+    # The prompt box: the text as typed, how its options were worked out ("model" or "rules"), and what
+    # was taken from it or left out. All empty for a video made from the form.
+    prompt: str = ""
+    brief_source: str = ""
+    brief_notes: list[str] = Field(default_factory=list)
 
 
 PLAN_STATE_VERSION = 1

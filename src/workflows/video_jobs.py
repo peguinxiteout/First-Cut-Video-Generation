@@ -4,7 +4,11 @@ Background video jobs: a video run as a separate process, in two jobs.
     start_plan(property_id, overrides)   planning -> planned (waiting for approval)
     start_produce(video_id)              planned  -> producing -> passed / warned / failed
 
-Each job is `python scripts/run_video_job.py plan|produce <video_id>`, started
+or, when no one reviews the plan (start_plan(..., auto_approve=True)), in one:
+
+    full job                             planning -> producing -> passed / warned / failed
+
+Each job is `python scripts/run_video_job.py plan|produce|full <video_id>`, started
 with the running interpreter, in the project folder, with its output going to
 <video folder>/work/job.log. A process of its own, not a thread, because a run
 changes the process-wide Settings (workflows/video.py wraps it in the run
@@ -41,7 +45,7 @@ logger = logging.getLogger(__name__)
 
 JOB_SCRIPT = PROJECT_ROOT / "scripts" / "run_video_job.py"
 LOG_NAME = "job.log"
-MODES = ("plan", "produce")
+MODES = ("plan", "produce", "full")
 
 
 # ---------------------------------------------------------------------------
@@ -147,10 +151,14 @@ def resolve_property_dir(property_id: str) -> Path:
 
 
 def start_plan(property_id: str, overrides: Optional[dict] = None, *, offline: bool = False, draft: bool = False,
-               refresh_ledger: bool = False) -> str:
+               refresh_ledger: bool = False, auto_approve: bool = False, prompt: str = "", brief_source: str = "",
+               brief_notes: Optional[list[str]] = None) -> str:
     """Creates the record and starts the plan job; returns the video id at once.
-    Raises JobBusyError when another video is planning or producing, JobError
-    for an unknown property or options that are not valid."""
+    With `auto_approve` the job is the full one: it plans and then produces
+    without stopping for approval. `prompt`, `brief_source` and `brief_notes`
+    are kept on the record's request (the prompt box). Raises JobBusyError when
+    another video is planning or producing, JobError for an unknown property
+    or options that are not valid."""
     sweep()
     folder = resolve_property_dir(property_id)
     given = {k: v for k, v in (overrides or {}).items() if v is not None}
@@ -165,10 +173,11 @@ def start_plan(property_id: str, overrides: Optional[dict] = None, *, offline: b
     record = VideoGenerationRecord(
         video_id=video_id, property_id=folder.name, status=STATUS_PLANNING,
         request=VideoRequest(property_id=folder.name, overrides=given, offline=offline, draft=draft,
-                             refresh_ledger=refresh_ledger))
+                             refresh_ledger=refresh_ledger, auto_approve=auto_approve, prompt=prompt,
+                             brief_source=brief_source, brief_notes=list(brief_notes or [])))
     (repository.video_output_dir(video_id) / "work").mkdir(parents=True, exist_ok=True)
     repository.begin_job(record)
-    _launch_or_fail(record, "plan")
+    _launch_or_fail(record, "full" if auto_approve else "plan")
     return video_id
 
 
@@ -186,10 +195,10 @@ def _launch_or_fail(record: VideoGenerationRecord, mode: str) -> None:
         pid = _start(mode, record.video_id)
     except Exception as exc:  # noqa: BLE001 - whatever stopped the launch, the slot must be given back
         logger.exception("Could not start the %s job of %s", mode, record.video_id)
-        if mode == "plan":
-            record.status, record.error = "failed", f"The job could not be started: {exc}"
-        else:
+        if mode == "produce":                                       # the plan is still there to approve again
             record.status, record.error = STATUS_PLANNED, f"The job could not be started: {exc}"
+        else:
+            record.status, record.error = "failed", f"The job could not be started: {exc}"
         repository.save_generation(record)
         raise JobError(f"The {mode} job could not be started: {exc}") from exc
     repository.set_pid(record.video_id, pid)

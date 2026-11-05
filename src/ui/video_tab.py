@@ -21,6 +21,7 @@ import io
 import json
 import logging
 from datetime import datetime, timezone
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import Optional
 
@@ -214,16 +215,28 @@ def merge_defaults(folder: Path, overrides: dict) -> Path:
 
 def cost_text(option: selector.ProviderOption) -> str:
     if option.est_cost_usd is None:
-        return "price not set"
+        return "credit-based" if option.cost_basis == "credits" else "price not set"
     if option.est_cost_usd == 0:
         return "free"
-    return f"about ${option.est_cost_usd:.2f}"
+    dollars = Decimal(str(option.est_cost_usd)).quantize(Decimal("0.01"), ROUND_HALF_UP)   # 0.075 is 0.08, not 0.07
+    return f"{'from ' if option.price_from else ''}about ${dollars}"
 
 
 def why_not(option: selector.ProviderOption) -> str:
     if option.reason == "adapter not installed":
         return "not available yet"
     return option.reason
+
+
+def unavailable_row(option: selector.ProviderOption) -> str:
+    """One line for a model that cannot be chosen: what it is, what it would cost, what the free
+    tier gives, and the flags that matter (a watermark, a price nobody has checked). The vendor is
+    named only when the label does not already."""
+    vendor = f"via {option.vendor}" if option.vendor and option.vendor.lower() not in option.label.lower() else ""
+    flags = ("free tier watermarked" if option.watermark_free_tier else "",
+             "" if option.verified else "price unverified")
+    parts = (option.label, vendor, why_not(option), cost_text(option), option.free_tier, *flags)
+    return " · ".join(part for part in parts if part)
 
 
 def option_label(option: selector.ProviderOption) -> str:
@@ -430,10 +443,11 @@ def _new_video() -> None:
         wanted = defaults["model"] if defaults["model"] in by_id else selector.AUTO
         model = st.radio("How the pictures move", [o.id for o in usable], index=[o.id for o in usable].index(wanted),
                          format_func=lambda i: option_label(by_id[i]), key=key("model"), disabled=offline_on)
-        for option in options:
-            if not option.available:
-                st.checkbox(f"{option.label} · {why_not(option)} · {cost_text(option)}", False, disabled=True,
-                            key=f"vt_na_{option.id}")
+        unavailable = [o for o in options if not o.available]
+        if unavailable:
+            st.markdown("**Not available yet**")
+            for option in unavailable:
+                st.caption(unavailable_row(option))
         st.caption("A shot a model cannot make is made by pan-and-zoom, which is free.")
 
     with st.container(border=True):

@@ -23,9 +23,13 @@ def _by_id(duration=15, **kwargs):
     return {o.id: o for o in selector.options(duration, **kwargs)}
 
 
+VENDOR_MODELS = ("magic_hour_wan22_i2v", "eightscale_wan22_14b_i2v", "nodaro_seedance_2_fast",
+                 "nodaro_veo_31_lite", "eternal_ai_wan22_i2v")
+
+
 def test_the_list_is_auto_then_each_provider_then_pan_and_zoom():
     ids = [o.id for o in selector.options(15)]
-    assert ids == ["auto", "minimax_h3_max", "kling_25_turbo_pro", "seedance_2", "kenburns"]
+    assert ids == ["auto", "minimax_h3_max", "kling_25_turbo_pro", "seedance_2", *VENDOR_MODELS, "kenburns"]
     assert "mock" not in ids                       # hidden
 
 
@@ -46,6 +50,58 @@ def test_the_estimate_is_the_rate_times_the_duration_and_none_when_no_price_is_s
     assert options["seedance_2"].est_cost_usd is None
     assert options["kenburns"].est_cost_usd == 0.0
     assert _by_id(10)["minimax_h3_max"].est_cost_usd == pytest.approx(0.30)
+
+
+def test_the_other_vendors_models_are_listed_but_not_available_yet_and_never_picked_by_auto():
+    options = _by_id()
+    for name in VENDOR_MODELS:
+        assert options[name].available is False
+        assert options[name].reason == "adapter not installed"
+        assert options[name].auto_priority is None
+        assert options[name].verified is False                        # the prices were given to us, not checked
+    assert selector.resolve("auto").ids == ("kenburns",)
+    plan = selector.resolve("eternal_ai_wan22_i2v")
+    assert plan.ids == ("kenburns",) and "unavailable (adapter not installed)" in plan.note
+
+
+def test_each_vendor_model_carries_what_the_selector_shows_about_it():
+    catalog = selector.load_catalog()
+    magic, eight, seed, veo, eternal = (catalog[n] for n in VENDOR_MODELS)
+    assert (magic.vendor, magic.cost_basis, magic.free_tier) == ("Magic Hour", "credits", "free signup credits")
+    assert (eight.cost_basis, eight.cost_per_clip, eight.clip_s, eight.price_from) == ("per_clip", 0.01, 3, True)
+    assert eight.free_tier == "10 free generations"
+    for spec in (seed, veo):
+        assert spec.vendor == "Nodaro" and spec.cost_basis == "credits"
+        assert spec.watermark_free_tier is True and spec.max_duration_s == 4
+    assert (eternal.cost_per_second, eternal.cost_by_resolution) == (0.005, {"480p": 0.005, "720p": 0.015})
+    assert eternal.free_tier == "$2 signup credits" and eternal.price_from is True
+    for spec in (magic, eight, seed, veo, eternal):
+        assert spec.verified is False and spec.price_source == "given by owner, 5 Nov 2026"
+        assert spec.auto_priority is None and spec.key_env
+
+
+def test_a_credit_based_model_has_no_dollar_estimate_and_a_clip_price_becomes_a_rate():
+    options = _by_id(15)
+    for name in ("magic_hour_wan22_i2v", "nodaro_seedance_2_fast", "nodaro_veo_31_lite"):
+        assert options[name].est_cost_usd is None and options[name].cost_basis == "credits"
+    assert options["eightscale_wan22_14b_i2v"].est_cost_usd == pytest.approx(0.05)         # 0.01 per 3 s, 15 s
+    assert _by_id(60)["eightscale_wan22_14b_i2v"].est_cost_usd == pytest.approx(0.20)
+    assert options["eternal_ai_wan22_i2v"].est_cost_usd == pytest.approx(0.075)           # the 480p rate
+    assert options["eternal_ai_wan22_i2v"].price_from is True
+
+
+def test_the_fal_models_are_marked_as_fal():
+    options = _by_id()
+    assert {options[n].vendor for n in ("minimax_h3_max", "kling_25_turbo_pro", "seedance_2")} == {"fal.ai"}
+    assert options["minimax_h3_max"].verified is True and options["minimax_h3_max"].price_from is False
+
+
+def test_an_adapter_that_arrives_makes_a_vendor_model_available_but_auto_still_skips_it(monkeypatch):
+    monkeypatch.setitem(registry.ADAPTERS, "eternal_ai", FakeFal)
+    monkeypatch.setenv("ETERNAL_AI_API_KEY", "k")
+    assert _by_id()["eternal_ai_wan22_i2v"].available
+    assert selector.resolve("auto").ids == ("kenburns",)
+    assert selector.resolve("eternal_ai_wan22_i2v").ids == ("eternal_ai_wan22_i2v", "kenburns")
 
 
 def test_an_installed_adapter_without_a_key_says_which_key(fal_installed):

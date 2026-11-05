@@ -44,8 +44,14 @@ class ProviderOption:
     label: str
     available: bool
     reason: str                          # why not, or (for auto) what it will use
-    est_cost_usd: Optional[float]        # None = price not set
+    est_cost_usd: Optional[float]        # None = price not set, or credit-based (see cost_basis)
     auto_priority: Optional[int] = None
+    vendor: str = ""
+    cost_basis: str = ""                 # per_second | per_clip | credits
+    price_from: bool = False             # the estimate is the lowest tier
+    free_tier: str = ""
+    watermark_free_tier: bool = False
+    verified: bool = True                # False: the price was given to us and not checked
 
 
 @dataclass(frozen=True)
@@ -74,7 +80,13 @@ def load_catalog() -> dict[str, ProviderSpec]:
             cost_per_second=entry.get("cost_per_second"), max_duration_s=float(entry.get("max_duration_s", 8)),
             supports_first_last_frame=bool(entry.get("supports_first_last_frame", False)),
             hidden=bool(entry.get("hidden", False)), endpoint=str(entry.get("endpoint") or ""),
-            params=dict(entry.get("params") or {}))
+            params=dict(entry.get("params") or {}), vendor=str(entry.get("vendor") or ""),
+            model_id=str(entry.get("model_id") or ""), cost_basis=str(entry.get("cost_basis") or ""),
+            cost_per_clip=entry.get("cost_per_clip"), clip_s=entry.get("clip_s"),
+            cost_by_resolution=dict(entry.get("cost_by_resolution") or {}),
+            price_from=bool(entry.get("price_from", False)), free_tier=str(entry.get("free_tier") or ""),
+            watermark_free_tier=bool(entry.get("watermark_free_tier", False)),
+            verified=bool(entry.get("verified", True)), price_source=str(entry.get("price_source") or ""))
     if PAN_AND_ZOOM not in catalog:
         raise ConfigError(f"{CATALOG_FILE} must define '{PAN_AND_ZOOM}': it is the last link of every chain")
     return catalog
@@ -147,7 +159,8 @@ def availability(spec: ProviderSpec, settings=None, now: Optional[datetime] = No
 
 
 def _estimate(spec: ProviderSpec, duration_s: float) -> Optional[float]:
-    return None if spec.cost_per_second is None else round(spec.cost_per_second * duration_s, 4)
+    rate = spec.rate_per_second
+    return None if rate is None else round(rate * duration_s, 4)
 
 
 def _auto_pick(catalog: dict[str, ProviderSpec], settings, now) -> Optional[ProviderSpec]:
@@ -170,7 +183,10 @@ def options(duration_s: float = 15, settings=None, now: Optional[datetime] = Non
             continue
         ok, reason = availability(spec, settings, now)
         out.append(ProviderOption(id=spec.id, label=spec.label, available=ok, reason=reason,
-                                  est_cost_usd=_estimate(spec, duration_s), auto_priority=spec.auto_priority))
+                                  est_cost_usd=_estimate(spec, duration_s), auto_priority=spec.auto_priority,
+                                  vendor=spec.vendor, cost_basis=spec.cost_basis, price_from=spec.price_from,
+                                  free_tier=spec.free_tier, watermark_free_tier=spec.watermark_free_tier,
+                                  verified=spec.verified))
     out.append(ProviderOption(id=PAN_AND_ZOOM, label=catalog[PAN_AND_ZOOM].label, available=True, reason="",
                               est_cost_usd=0.0))
     return out

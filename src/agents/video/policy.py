@@ -54,6 +54,23 @@ def role_allowed(role: str) -> bool:
 
 
 @contextmanager
+def model_call_policy() -> Iterator[gateway.CallPolicy]:
+    """The policy's vendors and roles for a model call made outside a video run (the Video tab's prompt
+    box, in the Streamlit process). Only the gateway's call policy, which is per context: no key is
+    blanked and no setting changed, so a brochure or blog run in another session is not affected.
+    Not pushed on the run's policy stack either: that list is shared by every thread."""
+    cfg = _config()
+    with gateway.restricted(list(cfg.get("allowed_vendors") or []), list(cfg.get("model_roles") or [])) as call_policy:
+        yield call_policy
+
+
+def role_listed(role: str) -> bool:
+    """Whether the policy file lists the role (an empty list lists every role)."""
+    roles = list(_config().get("model_roles") or [])
+    return not roles or role in roles
+
+
+@contextmanager
 def video_run_policy() -> Iterator[Optional[gateway.CallPolicy]]:
     cfg = _config()
     vendors, roles = list(cfg.get("allowed_vendors") or []), list(cfg.get("model_roles") or [])

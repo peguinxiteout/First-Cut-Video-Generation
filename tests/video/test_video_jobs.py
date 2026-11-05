@@ -98,6 +98,28 @@ def test_offline_and_draft_are_kept_on_the_record_and_offline_means_pan_and_zoom
     assert (request.offline, request.draft) == (True, True) and request.overrides["model"] == "kenburns"
 
 
+def test_an_auto_approved_plan_starts_the_full_job_and_keeps_the_prompt_on_the_record(folder, launched):
+    video_id = video_jobs.start_plan("AURELIA-HEIGHTS", {"duration_s": 30}, auto_approve=True,
+                                     prompt="A 30 second reel for families", brief_source="rules",
+                                     brief_notes=["Length 30 s from the prompt."])
+
+    request = repository.get_generation(video_id).request
+    assert request.auto_approve is True and request.prompt == "A 30 second reel for families"
+    assert request.brief_source == "rules" and request.brief_notes == ["Length 30 s from the prompt."]
+    assert request.overrides == {"duration_s": 30}
+    (command, log_path), = launched
+    assert command == [sys.executable, str(video_jobs.JOB_SCRIPT), "full", video_id]
+    assert log_path == repository.video_output_dir(video_id) / "work" / "job.log"
+    assert video_jobs.status(video_id).status == "planning"
+
+
+def test_a_plan_with_no_prompt_or_flag_is_the_plan_job_as_before(folder, launched):
+    video_id = video_jobs.start_plan("AURELIA-HEIGHTS")
+    request = repository.get_generation(video_id).request
+    assert (request.auto_approve, request.prompt, request.brief_source, request.brief_notes) == (False, "", "", [])
+    assert launched[0][0][-2:] == ["plan", video_id]
+
+
 def test_a_second_job_is_refused_while_one_runs(folder, launched):
     first = video_jobs.start_plan("AURELIA-HEIGHTS")
     with pytest.raises(JobBusyError, match=first):
@@ -126,6 +148,19 @@ def test_a_launch_that_fails_gives_the_slot_back(folder, monkeypatch):
     assert row.status == "failed" and "no process for you" in row.error
     monkeypatch.setattr(video_jobs, "_launch", lambda command, log_path: os.getpid())
     video_jobs.start_plan("AURELIA-HEIGHTS")                                  # not stuck behind the dead one
+
+
+def test_a_full_job_that_cannot_start_fails_the_record_and_gives_the_slot_back(folder, monkeypatch):
+    def broken(command, log_path):
+        raise OSError("no process for you")
+
+    monkeypatch.setattr(video_jobs, "_launch", broken)
+    with pytest.raises(JobError, match="full job could not be started: no process for you"):
+        video_jobs.start_plan("AURELIA-HEIGHTS", auto_approve=True)
+    (row,) = repository.list_summaries()
+    assert row.status == "failed" and "no process for you" in row.error
+    monkeypatch.setattr(video_jobs, "_launch", lambda command, log_path: os.getpid())
+    video_jobs.start_plan("AURELIA-HEIGHTS", auto_approve=True)
 
 
 def test_a_job_whose_process_died_is_swept_so_a_new_one_can_start(folder, launched, monkeypatch):
@@ -197,6 +232,72 @@ def test_a_plan_job_whose_property_has_gone_fails_the_record(folder, launched, s
 def test_a_job_for_an_unknown_video_exits_with_two(settings_restored):
     repository.init_db()
     assert run_video_job.main(["plan", "vid_unknown0001"]) == 2
+
+
+# -- the full job: plan and produce in one process (the workflow is stubbed: no render) ---------------------------
+
+@pytest.fixture
+def full_workflow(monkeypatch):
+    """Stands in for run_video_workflow, which would render; records what it was called with."""
+    seen: list[tuple[tuple, dict]] = []
+    outcome = {"status": "passed", "raises": None}
+
+    def fake(*args, **kwargs):
+        seen.append((args, kwargs))
+        if outcome["raises"]:
+            raise outcome["raises"]
+        record = repository.get_generation(kwargs["video_id"])
+        record.status = outcome["status"]
+        return record
+
+    monkeypatch.setattr("src.workflows.video.run_video_workflow", fake)
+    for name in ("run_plan_workflow", "run_produce_workflow"):
+        monkeypatch.setattr(f"src.workflows.video.{name}", lambda *a, **k: pytest.fail("not the full job's workflow"))
+    return seen, outcome
+
+
+def test_the_full_job_runs_the_one_process_workflow_with_the_request_from_the_record(folder, launched, full_workflow):
+    seen, _ = full_workflow
+    video_id = video_jobs.start_plan("AURELIA-HEIGHTS", {"duration_s": 10, "tone": "warm"}, draft=True,
+                                     auto_approve=True)
+
+    assert run_video_job.main(["full", video_id]) == 0
+
+    (args, kwargs), = seen
+    assert Path(args[0]).samefile(folder) and args[1:] == ({"duration_s": 10, "tone": "warm"},)
+    assert kwargs == {"offline": False, "draft": True, "refresh_ledger": False, "video_id": video_id}
+
+
+def test_a_full_job_that_ends_failed_exits_with_one(folder, launched, full_workflow):
+    _, outcome = full_workflow
+    outcome["status"] = "failed"
+    video_id = video_jobs.start_plan("AURELIA-HEIGHTS", auto_approve=True)
+    assert run_video_job.main(["full", video_id]) == 1
+
+
+def test_a_full_job_that_breaks_before_the_workflow_can_save_fails_the_record(folder, launched, full_workflow):
+    _, outcome = full_workflow
+    outcome["raises"] = RuntimeError("the workflow broke")
+    video_id = video_jobs.start_plan("AURELIA-HEIGHTS", auto_approve=True)
+
+    assert run_video_job.main(["full", video_id]) == 1
+
+    record = repository.get_generation(video_id)
+    assert record.status == "failed" and record.error == "the workflow broke"
+
+
+def test_a_full_job_whose_property_has_gone_fails_the_record(folder, launched, full_workflow):
+    seen, _ = full_workflow
+    video_id = video_jobs.start_plan("AURELIA-HEIGHTS", auto_approve=True)
+    for path in sorted(folder.rglob("*"), reverse=True):
+        path.unlink() if path.is_file() else path.rmdir()
+    folder.rmdir()
+
+    assert run_video_job.main(["full", video_id]) == 1
+
+    assert seen == []
+    record = repository.get_generation(video_id)
+    assert record.status == "failed" and "No property found" in record.error
 
 
 # -- producing: the slot ----------------------------------------------------------------------------------

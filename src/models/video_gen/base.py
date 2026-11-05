@@ -57,6 +57,28 @@ class ProviderSpec:
     hidden: bool = False
     endpoint: str = ""
     params: dict = field(default_factory=dict)
+    # What the selector shows about a vendor's model. Nothing here is read by an adapter.
+    vendor: str = ""
+    model_id: str = ""
+    cost_basis: str = ""                         # per_second | per_clip | credits
+    cost_per_clip: Optional[float] = None        # with clip_s, when the vendor prices a clip
+    clip_s: Optional[float] = None
+    cost_by_resolution: dict = field(default_factory=dict)
+    price_from: bool = False                     # the rate is the lowest tier: show "from"
+    free_tier: str = ""
+    watermark_free_tier: bool = False
+    verified: bool = True                        # False: the price was given to us and not checked
+    price_source: str = ""
+
+    @property
+    def rate_per_second(self) -> Optional[float]:
+        """USD per second of video: the per-second rate, else the clip price over the clip length;
+        None when no price is set (credit-based models)."""
+        if self.cost_per_second is not None:
+            return self.cost_per_second
+        if self.cost_per_clip is not None and self.clip_s:
+            return self.cost_per_clip / self.clip_s
+        return None
 
 
 @dataclass
@@ -117,7 +139,7 @@ class VideoProvider(ABC):
 
     def estimate_cost(self, seconds: float) -> Optional[float]:
         """USD for `seconds` of video, or None when the price is not set."""
-        rate = self.spec.cost_per_second if self.spec is not None else 0.0
+        rate = self.spec.rate_per_second if self.spec is not None else 0.0
         return None if rate is None else round(rate * seconds, 4)
 
     @abstractmethod

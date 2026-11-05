@@ -1,8 +1,9 @@
 #!/usr/bin/env python
-"""One background video job: the plan, or the production of a planned video.
+"""One background video job: the plan, the production of a planned video, or both.
 
     python scripts/run_video_job.py plan vid_0123456789
     python scripts/run_video_job.py produce vid_0123456789
+    python scripts/run_video_job.py full vid_0123456789     plan and produce, no stop for approval
 
 Started by src/workflows/video_jobs.py, not by hand. Everything the job needs
 is read from the record in the database (what was asked for, including
@@ -37,7 +38,7 @@ def _fail(video_id: str, reason: str) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run one background video job.")
-    parser.add_argument("mode", choices=["plan", "produce"])
+    parser.add_argument("mode", choices=["plan", "produce", "full"])
     parser.add_argument("video_id")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -53,13 +54,14 @@ def main(argv: list[str] | None = None) -> int:
 
     # Imported after force_offline(): nothing here may read a key before it is blanked.
     from src.workflows import video_jobs
-    from src.workflows.video import run_plan_workflow, run_produce_workflow
+    from src.workflows.video import run_plan_workflow, run_produce_workflow, run_video_workflow
 
     try:
-        if args.mode == "plan":
-            record = run_plan_workflow(video_jobs.resolve_property_dir(request.property_id), request.overrides,
-                                       offline=request.offline, draft=request.draft,
-                                       refresh_ledger=request.refresh_ledger, video_id=args.video_id)
+        if args.mode in ("plan", "full"):
+            run = run_plan_workflow if args.mode == "plan" else run_video_workflow
+            record = run(video_jobs.resolve_property_dir(request.property_id), request.overrides,
+                         offline=request.offline, draft=request.draft, refresh_ledger=request.refresh_ledger,
+                         video_id=args.video_id)
         else:
             record = run_produce_workflow(args.video_id)
     except Exception as exc:  # noqa: BLE001 - the workflow saves its own failures; this is for what came before it
