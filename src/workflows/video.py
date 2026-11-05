@@ -16,10 +16,16 @@ a state key (brief, script and storyboard are both); the names the Workflow
 tab shows are the step names in _STEP_NAMES.
 
 `run_plan_workflow()` runs the first half and saves a record with the status
-"planned"; script.json and storyboard.json are written beside it.
-`run_video_workflow()` runs both halves and saves the gate's verdict as the status:
-"passed", "warned" or "failed" (a failed gate still keeps the MP4; qa.json beside it
-lists every check). A soft failure (a clip that falls back
+"planned"; script.json and storyboard.json are written beside it, and
+plan_state.json (data/video_plan_state.py) with what the second half needs that
+the record does not hold. `run_produce_workflow(video_id)` runs the second half
+from the saved record and that file, in another process if need be: it never
+plans again. `run_video_workflow()` runs both halves and saves the gate's
+verdict as the status: "passed", "warned" or "failed" (a failed gate still
+keeps the MP4; qa.json beside it lists every check). While a run goes its
+record says "planning" or "producing", and after every node the repository's
+cheap update_progress saves the current node and the steps done, so another
+process can poll. A soft failure (a clip that falls back
 to pan-and-zoom, text drawn by the fallback renderer, a narration that does
 not fit) is recorded and never fails the run; only "no MP4 at all" does.
 
@@ -29,8 +35,10 @@ would go to one is refused and written to the record's notes.
 """
 from __future__ import annotations
 
+import contextvars
 import json
 import logging
+import os
 import uuid
 from collections import Counter
 from pathlib import Path
@@ -50,10 +58,12 @@ from src.agents.video import storyboard as storyboard_agent
 from src.agents.video import voice as voice_agent
 from src.core.exceptions import WorkflowError
 from src.core.video_state import VideoState
+from src.data import video_plan_state
 from src.data import video_repository as repository
 from src.data.schemas import AgentStepResult, WorkflowEvaluation
 from src.data.video_schemas import (
-    GateCheck, Storyboard, VideoEvaluationResult, VideoGate, VideoGenerationRecord, VideoMeasurements,
+    STATUS_PLANNED, STATUS_PLANNING, STATUS_PRODUCING, GateCheck, Storyboard, VideoEvaluationResult, VideoGate,
+    VideoGenerationRecord, VideoMeasurements, VideoRequest,
 )
 from src.observability import tracing
 from src.rendering import ffmpeg, video_compose
@@ -66,7 +76,53 @@ _PRODUCE_STEPS = ["voice_music", "motion", "overlays", "compose", "gate"]
 _STEP_NAMES = _PLAN_STEPS + _PRODUCE_STEPS
 
 _step_log_var = make_step_log_var("video_step_log")
-_instrumented = lambda step_name: instrumented(step_name, _step_log_var)  # noqa: E731
+# Called with ("start" | "done", step name) around every node by the run that set it.
+_progress_var: contextvars.ContextVar[Optional[Callable[[str, str], None]]] = contextvars.ContextVar(
+    "video_progress", default=None)
+
+
+def _progress(phase: str, step_name: str) -> None:
+    """Tells the run's progress saver a node starts or ends. A failure to save
+    progress never fails the run."""
+    saver = _progress_var.get()
+    if saver is None:
+        return
+    try:
+        saver(phase, step_name)
+    except Exception:  # noqa: BLE001 - progress is a courtesy; the run goes on
+        logger.warning("Could not save the progress of step %s", step_name, exc_info=True)
+
+
+def _instrumented(step_name: str):
+    """The shared step log and trace (_instrumentation.py), plus a progress save before and after the node."""
+    record_step = instrumented(step_name, _step_log_var)
+
+    def decorator(fn):
+        node = record_step(fn)
+
+        def wrapper(state):
+            _progress("start", step_name)
+            try:
+                return node(state)
+            finally:
+                _progress("done", step_name)
+
+        return wrapper
+
+    return decorator
+
+
+def _progress_saver(video_id: str, step_log: dict[str, AgentStepResult]) -> Callable[[str, str], None]:
+    def save(phase: str, step_name: str) -> None:
+        if phase == "start":
+            repository.update_progress(video_id, current_node=step_name)
+        else:
+            repository.update_progress(video_id, current_node=step_name, steps=_steps(step_log))
+    return save
+
+
+def _steps(step_log: dict[str, AgentStepResult]) -> list[AgentStepResult]:
+    return [step_log[name] for name in _STEP_NAMES if name in step_log]
 
 
 def _report(state: VideoState, agent: str, *lines: str) -> dict:
@@ -321,29 +377,101 @@ def auto_approve(storyboard: Storyboard) -> Storyboard:
 
 def run_plan_workflow(property_dir: Path, overrides: Optional[dict] = None, *, offline: bool = False,
                       draft: bool = False, refresh_ledger: bool = False,
-                      approve: Callable[[Storyboard], Storyboard] = auto_approve) -> VideoGenerationRecord:
+                      approve: Callable[[Storyboard], Storyboard] = auto_approve,
+                      video_id: Optional[str] = None) -> VideoGenerationRecord:
     """Plans the video for the property at `property_dir` (e.g.
     data/properties/ANAMIKA-HIGH-POINT): brief, ledger, asset audit, script
     and storyboard. `overrides` are options laid over video_input.json.
     `approve` gets the storyboard and returns the one to use. Saves and
-    returns a record with status "planned" (or "failed", with the reason)."""
-    return _run(property_dir, overrides, offline, draft, approve, produce=False, refresh_ledger=refresh_ledger)
+    returns a record with status "planned" (or "failed", with the reason).
+    `video_id` names a record that already exists (a background job creates
+    it before it starts); without one a new record is made."""
+    return _run(property_dir, overrides, offline, draft, approve, produce=False, refresh_ledger=refresh_ledger,
+                video_id=video_id)
 
 
 def run_video_workflow(property_dir: Path, overrides: Optional[dict] = None, *, offline: bool = False,
                        draft: bool = False, refresh_ledger: bool = False,
-                       approve: Callable[[Storyboard], Storyboard] = auto_approve) -> VideoGenerationRecord:
+                       approve: Callable[[Storyboard], Storyboard] = auto_approve,
+                       video_id: Optional[str] = None) -> VideoGenerationRecord:
     """Plan, approve, then produce: voice, motion, overlays and compose.
-    Saves and returns a record with status "rendered" (or "failed")."""
-    return _run(property_dir, overrides, offline, draft, approve, produce=True, refresh_ledger=refresh_ledger)
+    Saves and returns a record with the gate's verdict as its status
+    (passed, warned or failed)."""
+    return _run(property_dir, overrides, offline, draft, approve, produce=True, refresh_ledger=refresh_ledger,
+                video_id=video_id)
+
+
+def run_produce_workflow(video_id: str) -> VideoGenerationRecord:
+    """Produces the video of a planned record, in whatever process this is.
+
+    Reads the record (brief, script, storyboard, the steps already run) and
+    plan_state.json (everything else the plan graph held in memory) and runs
+    the produce graph into the same folder, saving the same record. It never
+    plans again: when plan_state.json is missing or from another version the
+    record is saved as failed, with the reason. Raises WorkflowError when
+    there is no such record, or it is not waiting to be produced."""
+    repository.init_db()
+    record = repository.get_generation(video_id)
+    if record is None:
+        raise WorkflowError(f"There is no video {video_id}.")
+    if record.status == STATUS_PLANNED:
+        record = repository.begin_produce(video_id)           # one job at a time, claimed in one transaction
+    elif record.status != STATUS_PRODUCING:
+        raise WorkflowError(f"Video {video_id} is '{record.status}'; only a planned video can be produced.")
+    record.pid = os.getpid()
+    repository.set_pid(video_id, record.pid)
+
+    step_log: dict[str, AgentStepResult] = {s.node: s for s in (record.workflow_evaluation.steps
+                                                                if record.workflow_evaluation else [])}
+    token = _step_log_var.set(step_log)
+    progress_token = _progress_var.set(_progress_saver(video_id, step_log))
+    blocked: list[str] = []
+    try:
+        try:
+            if record.brief is None or record.script is None or record.storyboard is None:
+                raise WorkflowError(f"The plan of {video_id} is incomplete (no brief, script or storyboard).")
+            saved = video_plan_state.load(video_id)
+            state: VideoState = {
+                "video_id": video_id, "property_dir": saved.property_dir, "video_overrides": saved.overrides,
+                "offline": saved.offline, "draft": saved.draft, "refresh_ledger": saved.refresh_ledger,
+                "property_input": saved.property_input, "video_input": saved.video_input,
+                "brief": record.brief, "brand_kit": saved.brand_kit, "property_knowledge": saved.property_knowledge,
+                "image_analyses": saved.image_analyses, "ranked_assets": saved.ranked_assets,
+                "image_plan": video_plan_state.plan_from_data(saved.image_plan), "asset_notes": saved.asset_notes,
+                "script": record.script, "concept": saved.concept, "storyboard": record.storyboard,
+                "agent_reports": dict(record.agent_reports)}
+            with policy.video_run_policy() as call_policy, tracing.trace_generation(video_id, record.property_id):
+                state = get_produce_graph().invoke(state, {"recursion_limit": 25})
+                _fill_produce(record, state)
+                blocked = list(call_policy.blocked) if call_policy else []
+            _set_verdict(record)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Producing video %s failed", video_id)
+            record.status = "failed"
+            record.error = str(exc)
+    finally:
+        _progress_var.reset(progress_token)
+        _step_log_var.reset(token)
+    return _finish(record, step_log, blocked)
 
 
 def _run(property_dir: Path, overrides: Optional[dict], offline: bool, draft: bool,
-         approve: Callable[[Storyboard], Storyboard], produce: bool, refresh_ledger: bool = False) -> VideoGenerationRecord:
+         approve: Callable[[Storyboard], Storyboard], produce: bool, refresh_ledger: bool = False,
+         video_id: Optional[str] = None) -> VideoGenerationRecord:
     repository.init_db()
     property_dir = Path(property_dir)
-    video_id = f"vid_{uuid.uuid4().hex[:10]}"
-    record = VideoGenerationRecord(video_id=video_id, property_id=property_dir.name, status="running")
+    if video_id:
+        record = repository.get_generation(video_id)
+        if record is None:
+            raise WorkflowError(f"There is no video {video_id}.")
+        record.status = STATUS_PLANNING
+    else:
+        video_id = f"vid_{uuid.uuid4().hex[:10]}"
+        record = VideoGenerationRecord(
+            video_id=video_id, property_id=property_dir.name, status=STATUS_PLANNING,
+            request=VideoRequest(property_id=property_dir.name, overrides=dict(overrides or {}), offline=offline,
+                                 draft=draft, refresh_ledger=refresh_ledger))
+    record.pid = os.getpid()
     repository.save_generation(record)
 
     initial: VideoState = {"video_id": video_id, "property_dir": str(property_dir),
@@ -351,6 +479,7 @@ def _run(property_dir: Path, overrides: Optional[dict], offline: bool, draft: bo
                            "refresh_ledger": refresh_ledger, "agent_reports": {}}
     step_log: dict[str, AgentStepResult] = {}
     token = _step_log_var.set(step_log)
+    progress_token = _progress_var.set(_progress_saver(video_id, step_log))
     blocked: list[str] = []
     try:
         try:
@@ -364,24 +493,41 @@ def _run(property_dir: Path, overrides: Optional[dict], offline: bool, draft: bo
                         raise WorkflowError("The approved storyboard is not valid: " + "; ".join(problems))
                 state = {**state, "storyboard": board}
                 _fill_plan(record, state)
+                video_plan_state.save(video_plan_state.build(
+                    video_id, state, property_dir=property_dir, offline=offline, draft=draft,
+                    refresh_ledger=refresh_ledger))
                 if produce:
+                    repository.update_progress(video_id, status=STATUS_PRODUCING)
                     state = get_produce_graph().invoke(state, {"recursion_limit": 25})
                     _fill_produce(record, state)
                 blocked = list(call_policy.blocked) if call_policy else []
-            record.status = _status(record) if produce else "planned"
-            if record.status == "failed":
-                record.error = "The quality gate failed: " + "; ".join(
-                    i.detail for i in record.evaluation.items if i.status == "fail")[:400]
+            if produce:
+                _set_verdict(record)
+            else:
+                record.status = STATUS_PLANNED
         except Exception as exc:  # noqa: BLE001
             logger.exception("Video generation failed for %s", property_dir.name)
             record.status = "failed"
             record.error = str(exc)
     finally:
+        _progress_var.reset(progress_token)
         _step_log_var.reset(token)
+    return _finish(record, step_log, blocked)
 
+
+def _set_verdict(record: VideoGenerationRecord) -> None:
+    record.status = _status(record)
+    if record.status == "failed":
+        record.error = "The quality gate failed: " + "; ".join(
+            i.detail for i in record.evaluation.items if i.status == "fail")[:400]
+
+
+def _finish(record: VideoGenerationRecord, step_log: dict[str, AgentStepResult],
+            blocked: list[str]) -> VideoGenerationRecord:
     record.notes = list(dict.fromkeys([*record.notes, *(f"Blocked by the run's policy: {b}." for b in blocked)]))
-    record.workflow_evaluation = WorkflowEvaluation(
-        steps=[step_log[name] for name in _STEP_NAMES if name in step_log])
+    record.workflow_evaluation = WorkflowEvaluation(steps=_steps(step_log))
+    record.steps_done = sum(1 for s in record.workflow_evaluation.steps if s.status == "success")
+    record.current_node = ""
     repository.save_generation(record)
     return record
 

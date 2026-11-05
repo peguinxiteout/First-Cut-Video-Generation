@@ -36,9 +36,10 @@ win_asyncio.install()
 from src.agents.brochure import catalog  # noqa: E402
 from src.core.config import settings  # noqa: E402
 from src.core.ids import slugify  # noqa: E402
-from src.data import blog_repository, property_form, repository  # noqa: E402
+from src.data import blog_repository, property_form, repository, video_repository  # noqa: E402
 from src.evaluation.tiers import quality_tier  # noqa: E402
 from src.rendering.renderer import is_pdf_render_valid  # noqa: E402
+from src.ui.video_tab import render_video_tab  # noqa: E402
 from src.workflows.blog import run_blog_workflow  # noqa: E402
 from src.workflows.brochure import run_brochure_workflow  # noqa: E402
 
@@ -53,6 +54,7 @@ st.set_page_config(page_title=f"{PRODUCT_NAME} · Real estate content",
                    layout="wide", page_icon=str(_ICON_PNG) if _ICON_PNG.exists() else None)
 repository.init_db()
 blog_repository.init_db()
+video_repository.init_db()
 
 # Colours, fonts and radii come from .streamlit/config.toml; this adds the
 # few touches a theme cannot express.
@@ -357,7 +359,9 @@ st.markdown(f"""
 </div>
 <p class="fc-eyebrow">What would you like to create?</p>
 """, unsafe_allow_html=True)
-solution = st.radio("What would you like to create?", ["Brochure", "Blog post"], horizontal=True,
+if "video" in st.query_params:      # a link to a video opens the Video tab
+    st.session_state.setdefault("solution", "Video")
+solution = st.radio("What would you like to create?", ["Brochure", "Blog post", "Video"], horizontal=True,
                     label_visibility="collapsed", key="solution")
 
 # =============================================================================
@@ -471,7 +475,7 @@ if solution == "Brochure":
 # Blog post
 # =============================================================================
 
-else:
+elif solution == "Blog post":
     st.caption("Only the topic is required. Facts you supply are the only figures the post will state "
                "as yours; anything researched is cited.")
     with st.form("blog_form", border=False):
@@ -536,6 +540,13 @@ else:
     if record is not None:
         st.divider()
         _result_tabs(record, "blog post")
+
+# =============================================================================
+# Video
+# =============================================================================
+
+else:
+    render_video_tab()
 
 # =============================================================================
 # Footer

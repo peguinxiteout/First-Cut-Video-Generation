@@ -41,8 +41,9 @@ class Brief:
 
 def load_video_input(property_dir: Path, overrides: dict | None = None) -> VideoInput:
     """`video_input.json` (all defaults when there is none) with the
-    non-empty `overrides` laid over it. Raises IngestionError, in words,
-    when the file or an option is not valid."""
+    `overrides` laid over it. An option left as None is not given; an empty
+    string or list is, and clears what the file says. Raises IngestionError,
+    in words, when the file or an option is not valid."""
     path = property_dir / VIDEO_INPUT_FILE
     data: dict = {}
     if path.exists():
@@ -52,7 +53,7 @@ def load_video_input(property_dir: Path, overrides: dict | None = None) -> Video
             raise IngestionError(f"{VIDEO_INPUT_FILE} in {property_dir} is not valid JSON: {exc}") from exc
         if not isinstance(data, dict):
             raise IngestionError(f"{VIDEO_INPUT_FILE} in {property_dir} must be a JSON object")
-    data = {**data, **{k: v for k, v in (overrides or {}).items() if v not in (None, "")}}
+    data = {**data, **{k: v for k, v in (overrides or {}).items() if v is not None}}
     try:
         return VideoInput.model_validate(data)
     except ValidationError as exc:

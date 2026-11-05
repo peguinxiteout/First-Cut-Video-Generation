@@ -16,12 +16,18 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
-from src.data.schemas import HumanReview, ImageAnalysis, WorkflowEvaluation
+from src.data.schemas import HumanReview, ImageAnalysis, PropertyInput, PropertyKnowledge, WorkflowEvaluation
 
 VIDEO_DURATIONS = (10, 15, 30, 45, 60)
 VIDEO_ASPECTS = ("9:16", "16:9", "1:1")
 VIDEO_OBJECTIVES = ("awareness", "site_visit", "launch", "enquiry")
 VIDEO_QUALITIES = ("draft", "final")
+
+# Where a record is in its life. planning and producing are the two states in
+# which a job is (or should be) running; planned is "waiting for approval".
+STATUS_PLANNING, STATUS_PLANNED, STATUS_PRODUCING = "planning", "planned", "producing"
+STATUS_CANCELLED = "cancelled"
+ACTIVE_STATUSES = (STATUS_PLANNING, STATUS_PRODUCING)
 
 # What a shot's camera does to its still. The video model (or pan-and-zoom)
 # only adds this movement; it never changes what the picture shows.
@@ -373,6 +379,80 @@ class VideoEvaluationResult(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Request and plan state
+# ---------------------------------------------------------------------------
+
+class VideoRequest(BaseModel):
+    """What was asked for, kept on the record before the job starts so the job
+    reads it from the database and not from its command line."""
+    property_id: str
+    overrides: dict[str, Any] = Field(default_factory=dict)   # laid over video_input.json
+    offline: bool = False
+    draft: bool = False
+    refresh_ledger: bool = False
+
+
+PLAN_STATE_VERSION = 1
+PLAN_STATE_FILE = "plan_state.json"
+
+
+class PlanState(BaseModel):
+    """What the produce half needs that the record does not hold: the part of
+    the plan graph's state that lives only in memory. Written beside
+    script.json when the plan is done; the produce job reads it and never
+    builds any of it again. JSON only, no keys. Paths under the project are
+    written relative to it (see data/video_plan_state.py)."""
+    version: int = PLAN_STATE_VERSION
+    video_id: str
+    property_dir: str
+    offline: bool = False
+    draft: bool = False
+    refresh_ledger: bool = False
+    overrides: dict[str, Any] = Field(default_factory=dict)
+    video_input: VideoInput
+    property_input: PropertyInput
+    property_knowledge: PropertyKnowledge
+    brand_kit: BrandKit
+    image_analyses: dict[str, PhotoAnalysis] = Field(default_factory=dict)
+    ranked_assets: list[RankedAsset] = Field(default_factory=list)
+    image_plan: dict[str, Any] = Field(default_factory=dict)     # image_plan.Plan as plain data
+    asset_notes: list[str] = Field(default_factory=list)
+    concept: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("image_analyses", mode="before")
+    @classmethod
+    def _photo_readings(cls, value):
+        """The offline reading is a plain ImageAnalysis; it is kept as the PhotoAnalysis it is a part of."""
+        if not isinstance(value, dict):
+            return value
+        return {k: PhotoAnalysis(**v.model_dump()) if isinstance(v, ImageAnalysis) and not isinstance(v, PhotoAnalysis)
+                else v for k, v in value.items()}
+
+
+class VideoSummary(BaseModel):
+    """One row of the history, read from the flat columns only (no record_json)."""
+    video_id: str
+    property_id: str
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    started_at: Optional[datetime] = None  # when the running job (plan, or produce after approval) started
+    status: str
+    current_node: str = ""
+    steps_done: int = 0
+    duration_s: int = 15
+    aspect: str = "9:16"
+    provider: str = "auto"
+    cost_usd: float = 0.0
+    gate_result: str = ""                 # pass | warn | fail, once the gate has run
+    quality_score: Optional[float] = None
+    video_path: Optional[str] = None
+    thumbnail_path: Optional[str] = None
+    error: Optional[str] = None
+    pid: Optional[int] = None
+    human_review_status: str = "pending"
+
+
+# ---------------------------------------------------------------------------
 # Record
 # ---------------------------------------------------------------------------
 
@@ -380,8 +460,15 @@ class VideoGenerationRecord(BaseModel):
     video_id: str
     property_id: str
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    status: str = "pending"               # pending | running | planned | passed | warned | failed (the gate's result; a gate FAIL keeps the MP4)
+    status: str = "pending"               # pending | planning | planned | producing | passed | warned | failed | cancelled (passed, warned, failed: the gate's result; a gate FAIL keeps the MP4)
     error: Optional[str] = None
+    request: Optional[VideoRequest] = None
+    # Job state, kept in their own columns and updated after every node
+    # (video_repository.update_progress); the record_json copy can be older.
+    current_node: str = ""                # the step running now, or the last one run
+    steps_done: int = 0
+    updated_at: Optional[datetime] = None
+    pid: Optional[int] = None             # the job's process, while it runs
 
     output_dir: Optional[str] = None
     video_path: Optional[str] = None
