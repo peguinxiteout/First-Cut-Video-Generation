@@ -20,6 +20,9 @@ property's own voice is used. The page's own CSS is here, not in streamlit_app.p
 """
 from __future__ import annotations
 
+import base64
+import io
+import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
@@ -44,7 +47,7 @@ SHAPES = (AUTO, *VIDEO_ASPECTS)
 KEY_PROMPT, KEY_PROPERTY, KEY_MODEL = "vt_prompt", "vt_property", "vt_model"
 KEY_SHAPE, KEY_LENGTH, KEY_OFFLINE, KEY_DRAFT, KEY_PLAN, KEY_SEND = (
     "vt_shape", "vt_length", "vt_offline", "vt_draft", "vt_plan", "vt_send")
-STRIP_PHOTOS = 12
+STRIP_PHOTOS = 30
 CHARS_PER_WORD = 6                           # an English word and the space after it, for the voice's price
 PLACEHOLDER = ("Describe the video you want: who it is for, what to highlight, the mood, the call to action. "
                "Camera moves and on-screen text are decided by the tool, not by the prompt.")
@@ -53,12 +56,19 @@ CSS = """
 <style>
   .st-key-vt_box { border: 1px solid var(--fc-line, #E6E1F7); border-radius: 22px; background: #FFFFFF;
       padding: .7rem .9rem .5rem; box-shadow: 0 1px 2px rgba(28,23,51,.04), 0 18px 48px -22px rgba(91,51,240,.25); }
+  .vt-strip { display: flex; gap: 6px; overflow-x: auto; padding: 2px 0 8px; }
+  .vt-strip img { height: 84px; width: auto; flex: 0 0 auto; border-radius: 8px; }
   .st-key-vt_prompt [data-testid="stTextAreaRootElement"] { border: none !important; background: transparent !important;
       box-shadow: none !important; }
   .st-key-vt_prompt textarea { background: transparent !important; font-size: 1.02rem; line-height: 1.5; }
+  /* the toolbar is one row of buttons as wide as their labels, evenly spaced; the fifth cell takes the slack */
+  .st-key-vt_toolbar [data-testid="stHorizontalBlock"] { display: flex; flex-wrap: wrap; align-items: center;
+      gap: .5rem !important; }
+  .st-key-vt_toolbar [data-testid="stColumn"] { flex: 0 0 auto !important; width: auto !important; min-width: 0 !important; }
+  .st-key-vt_toolbar [data-testid="stColumn"]:nth-child(5) { flex: 1 1 0 !important; }
   .st-key-vt_toolbar [data-testid="stPopover"] button { border-radius: 999px; background: var(--fc-lav, #F4F1FE);
       border: 1px solid var(--fc-line, #E6E1F7); color: var(--fc-ink, #1C1733); font-size: .88rem; padding: .25rem .8rem;
-      min-height: 2.1rem; }
+      min-height: 2.1rem; white-space: nowrap; }
   .st-key-vt_toolbar [data-testid="stPopover"] button:hover { border-color: var(--fc-violet, #5B33F0);
       color: var(--fc-violet, #5B33F0); }
   .st-key-vt_send button { border-radius: 50% !important; width: 2.6rem; height: 2.6rem; min-height: 0 !important;
@@ -143,6 +153,29 @@ def plan_on_overrides(values: dict, defaults: dict, prompt_values: dict, toolbar
                                                   prompt_values))
 
 
+SOURCE_FIELDS = ("duration_s", "aspect", "objective", "audience", "tone", "highlights", "cta", "music_mood", "voice",
+                 "model")
+
+
+def saved_keys(folder: Path) -> set[str]:
+    """The options the property's video_input.json sets (none when there is no file or it cannot be read)."""
+    try:
+        data = json.loads((folder / video_tab.brief_agent.VIDEO_INPUT_FILE).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return set()
+    return set(data) if isinstance(data, dict) else set()
+
+
+def option_sources(toolbar: Toolbar, form_changed: set[str], prompt_keys: set[str], saved: set[str]) -> dict[str, str]:
+    """Where each option of the brief came from, in the order they win: the toolbar, the form (a field the person
+    changed), the prompt, the property's saved defaults, else the built-in default."""
+    from_toolbar = {key for key, chosen in (("duration_s", toolbar.length), ("aspect", toolbar.shape),
+                                            ("model", toolbar.model != AUTO or toolbar.offline)) if chosen}
+    return {field: ("toolbar" if field in from_toolbar else "form" if field in form_changed
+                    else "prompt" if field in prompt_keys else "saved defaults" if field in saved else "default")
+            for field in SOURCE_FIELDS}
+
+
 # ---------------------------------------------------------------------------
 # The estimate
 # ---------------------------------------------------------------------------
@@ -202,17 +235,23 @@ def estimate_text(est: Estimate) -> str:
 # ---------------------------------------------------------------------------
 
 @st.cache_data(show_spinner=False)
-def _strip_thumbnail(path: str, modified: float) -> bytes:
-    import io
-
+def _strip_markup(paths: tuple[str, ...], modified: tuple[float, ...]) -> str:
+    """One row of small pictures that scrolls sideways (the page's own CSS, above): a data address each, so
+    nothing is fetched. Cached on the files and when they last changed."""
     from PIL import Image
 
-    with Image.open(path) as picture:
-        picture = picture.convert("RGB")
-        picture.thumbnail((160, 160))
-        buffer = io.BytesIO()
-        picture.save(buffer, "JPEG", quality=75)
-    return buffer.getvalue()
+    pictures = []
+    for path in paths:
+        try:
+            with Image.open(path) as picture:
+                picture = picture.convert("RGB")
+                picture.thumbnail((240, 240))
+                buffer = io.BytesIO()
+                picture.save(buffer, "JPEG", quality=72)
+        except Exception:  # noqa: BLE001 - a picture that cannot be read is left out of the strip
+            continue
+        pictures.append(f'<img src="data:image/jpeg;base64,{base64.b64encode(buffer.getvalue()).decode()}" alt="">')
+    return f'<div class="vt-strip">{"".join(pictures)}</div>' if pictures else ""
 
 
 def _photo_strip(folder: Path) -> None:
@@ -220,21 +259,12 @@ def _photo_strip(folder: Path) -> None:
         photos = [i for i in discover_images(folder) if i.role in ("", "photo")]
     except IngestionError:
         return
-    shown = []
-    for photo in photos[:STRIP_PHOTOS]:
-        try:
-            shown.append(_strip_thumbnail(photo.path, Path(photo.path).stat().st_mtime))
-        except Exception:  # noqa: BLE001 - a picture that cannot be read is left out of the strip
-            continue
-    if shown:
-        st.image(shown, width=54)
+    shown = [p.path for p in photos[:STRIP_PHOTOS] if Path(p.path).is_file()]
+    markup = _strip_markup(tuple(shown), tuple(Path(p).stat().st_mtime for p in shown)) if shown else ""
+    if markup:
+        st.markdown(markup, unsafe_allow_html=True)
         more = len(photos) - len(shown)
         st.caption(f"{len(photos)} photographs" + (f" ({more} not shown)" if more > 0 else ""))
-
-
-def _short(label: str, limit: int = 20) -> str:
-    label = label.split(" (")[0]
-    return label if len(label) <= limit else label[:limit - 1].rstrip() + "…"
 
 
 def _guard_state(labels: dict, usable: list[str]) -> None:
@@ -287,7 +317,7 @@ def render_new_video() -> None:
         with st.container(key="vt_toolbar"):
             c_plus, c_model, c_shape, c_more, _, c_plan, c_send = st.columns(
                 [2.0, 2.0, 1.8, 1.8, 0.5, 1.6, 0.8], vertical_alignment="center")
-            with c_plus.popover("+ " + (_short(labels[property_id]) if property_id else "Property"), key="vt_plus",
+            with c_plus.popover("+ " + (labels[property_id].split(" (")[0] if property_id else "Property"), key="vt_plus",
                                 help="Choose the property the video is made from"):
                 st.caption("Property")
                 with st.container(height=min(70 + 38 * len(choices), 280)):
@@ -295,7 +325,7 @@ def render_new_video() -> None:
                              label_visibility="collapsed")
                 st.divider()
                 st.button("Recipes, coming soon", key="vt_recipes", disabled=True)
-            with c_model.popover("Model: " + ("Auto" if model == AUTO else _short(usable[model].label, 16)),
+            with c_model.popover("Model: " + ("Auto" if model == AUTO else usable[model].label),
                                  key="vt_model_menu", help="What moves the pictures"):
                 st.radio("How the pictures move", list(usable),
                          format_func=lambda i: video_tab.md(video_tab.option_label(usable[i])),
@@ -373,10 +403,12 @@ def _send(toolbar: Toolbar, folder: Path, defaults: dict, values: dict) -> None:
     prompt_values = prompt_brief.prompt_overrides(result)
     overrides = (plan_on_overrides(values, defaults, prompt_values, toolbar) if toolbar.plan
                  else plan_off_overrides(prompt_values, toolbar))
+    changed = {f for f in video_tab.FORM_FIELDS if toolbar.plan and values.get(f) != defaults.get(f)}
+    sources = option_sources(toolbar, changed, set(prompt_values), saved_keys(folder))
     try:
         video_id = video_jobs.start_plan(
             folder.name, overrides, offline=toolbar.offline, draft=toolbar.draft, auto_approve=not toolbar.plan,
-            prompt=toolbar.prompt.strip(), brief_source=result.source, brief_notes=result.notes)
+            prompt=toolbar.prompt.strip(), brief_source=result.source, brief_notes=result.notes, sources=sources)
     except JobBusyError as exc:
         video_tab.busy_notice(exc)
     except JobError as exc:

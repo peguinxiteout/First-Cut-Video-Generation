@@ -514,17 +514,37 @@ def _as_written(text: str, figure: str) -> str:
     return next((t for t in re.findall(r"\d[\d,]*(?:\.\d+)?", text) if figure in guard.figures(t)), figure)
 
 
+def _looks_like_amenity(item: str, cfg: dict) -> bool:
+    """Whether a phrase reads as an amenity, so that refusing it is worth saying: it names something of the tag
+    vocabulary (a word or a synonym), or it is a short noun phrase. A clause or a verb that a cue's list ran into
+    ("finishing", "gliding down to the entrance") is not, and is dropped without a word."""
+    if photo_tags.needs(item):
+        return True
+    words = _norm(item).split()
+    if not words or len(words) > 4:
+        return False
+    first = words[0]
+    if first in {str(w).lower() for w in cfg["not_amenity_starts"]}:
+        return False
+    return not (first.endswith(("ing", "ed", "ly")) and first not in {str(w).lower() for w in cfg["ing_nouns"]})
+
+
 def _check_highlights(items: list[str], facts: _Facts, cfg: dict, notes: list[str]) -> list[str]:
+    """The property's own wording of each item it has. An item it does not have is left out; it is said so only
+    when it looks like an amenity (the rest is read as the prompt's own phrasing and ignored)."""
     kept: list[str] = []
     for item in items:
+        named = _looks_like_amenity(item, cfg)
         figure = guard.unknown_figure(item, facts.figures, facts.words)
         if figure:
-            notes.append(f"'{item}' has a figure ({_as_written(item, figure)}) that is not in this property's "
-                         "facts; left out.")
+            if named:
+                notes.append(f"'{item}' has a figure ({_as_written(item, figure)}) that is not in this property's "
+                             "facts; left out.")
             continue
         thing = _match(item, facts)
         if thing is None:
-            notes.append(f"'{item}' is not in this property's details; left out.")
+            if named:
+                notes.append(f"'{item}' is not in this property's details; left out.")
         elif thing not in kept:
             kept.append(thing)
     if len(kept) > cfg["max_highlights"]:

@@ -152,11 +152,11 @@ def resolve_property_dir(property_id: str) -> Path:
 
 def start_plan(property_id: str, overrides: Optional[dict] = None, *, offline: bool = False, draft: bool = False,
                refresh_ledger: bool = False, auto_approve: bool = False, prompt: str = "", brief_source: str = "",
-               brief_notes: Optional[list[str]] = None) -> str:
+               brief_notes: Optional[list[str]] = None, sources: Optional[dict[str, str]] = None) -> str:
     """Creates the record and starts the plan job; returns the video id at once.
     With `auto_approve` the job is the full one: it plans and then produces
     without stopping for approval. `prompt`, `brief_source` and `brief_notes`
-    are kept on the record's request (the prompt box). Raises JobBusyError when
+    are kept on the record's request (the prompt box), with `sources` (where each option came from). Raises JobBusyError when
     another video is planning or producing, JobError for an unknown property
     or options that are not valid."""
     sweep()
@@ -174,7 +174,8 @@ def start_plan(property_id: str, overrides: Optional[dict] = None, *, offline: b
         video_id=video_id, property_id=folder.name, status=STATUS_PLANNING,
         request=VideoRequest(property_id=folder.name, overrides=given, offline=offline, draft=draft,
                              refresh_ledger=refresh_ledger, auto_approve=auto_approve, prompt=prompt,
-                             brief_source=brief_source, brief_notes=list(brief_notes or [])))
+                             brief_source=brief_source, brief_notes=list(brief_notes or []),
+                             sources=dict(sources or {})))
     (repository.video_output_dir(video_id) / "work").mkdir(parents=True, exist_ok=True)
     repository.begin_job(record)
     _launch_or_fail(record, "full" if auto_approve else "plan")

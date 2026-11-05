@@ -249,8 +249,11 @@ def run(brief: VideoBrief, script: VideoScript, assets: list[RankedAsset],
             before.seconds = round(before.seconds + seconds[k], 3)
             before.line_ids = [*before.line_ids, *[i for i in line_ids if i not in before.line_ids]]
             what = ", ".join(sorted({t for l in lines for t in l.tags})) or "the line"
-            notes.append(f"Shot {n} would have shown {before.source_path and Path(before.source_path).name or 'the same picture'} "
-                         f"again: no other photograph shows {what}, so it is joined to the shot before, which is longer.")
+            # By line and photograph, not by number: this shot is never made, so its number is the next shot's.
+            said = f"'{lines[0].text}'" if lines else "a line"
+            notes.append(f"The shot for {said} would have shown "
+                         f"{before.source_path and Path(before.source_path).name or 'the same picture'} again: "
+                         f"no other photograph shows {what}, so it is joined to the shot before, which is longer.")
             continue
         needed = fresh
         if asset is not None and asset.tags and needed:

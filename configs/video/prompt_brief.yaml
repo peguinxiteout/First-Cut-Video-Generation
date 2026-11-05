@@ -110,6 +110,16 @@ highlight_cues: [highlight, highlights, highlighting, feature, features, featuri
 # What a highlight list sometimes names that is not a thing the property has ("highlight the property").
 generic_items: [property, project, building, tower, towers, place, video, it, them, everything, features, amenities]
 
+# A highlight the property does not have is refused in the notes only when it looks like an amenity: it matches
+# the tag vocabulary, or it is a short noun phrase. A phrase that starts with one of these (a clause that a list ran
+# into: "finishing on a low-angle shot", "gliding down to the entrance") or with a verb form in -ing, -ed or -ly is
+# left out without a note, unless it is one of the -ing words that are things.
+not_amenity_starts: [to, into, onto, from, over, across, through, along, around, against, toward, towards, while,
+                     as, then, before, after, until, so, but, which, that, where, when, how, for, with, in, at, on, by,
+                     using]
+ing_nouns: [parking, seating, landscaping, housekeeping, shopping, gardening, cycling, jogging, swimming, walking,
+            running, bowling, banking, plumbing, flooring, lighting, cooking, gaming]
+
 # Words of the tag vocabulary (video/vision.yaml) that name a thing a prompt describes rather than
 # asks for ("lush green trees", "families with kids"). They are not taken as highlights.
 weak_words: [kid, kids, child, children, tree, trees, greenery, green, garden, gardens, landscaped, open space,

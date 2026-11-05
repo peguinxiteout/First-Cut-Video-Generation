@@ -21,6 +21,7 @@ from __future__ import annotations
 import io
 import json
 import logging
+import re
 from datetime import datetime, timezone
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
@@ -471,8 +472,21 @@ def _watch(video_id: str) -> None:
         st.rerun()
 
 
-def _plain_notes(record: VideoGenerationRecord) -> list[str]:
-    return list(dict.fromkeys([*record.notes, *record.defects]))
+# Plan notes that are about how the plan was made, not about what is in it: the ledger and the caches, the models
+# that read things, the files that were set aside. They are shown folded, under "Technical".
+TECHNICAL_NOTES = re.compile(r"^Fact ledger|read by a vision model|usable photographs; set aside|refresh-ledger|"
+                             r"^Blocked by the run's policy", re.I)
+THIN_SCRIPT = 0.7                     # a script under this share of its word target is flagged above the script
+
+
+def split_notes(record: VideoGenerationRecord) -> tuple[list[str], list[str]]:
+    """(about the plan, technical): the plan's notes and defects, each once, in the order they were written."""
+    notes = list(dict.fromkeys([*record.notes, *record.defects]))
+    return ([n for n in notes if not TECHNICAL_NOTES.search(n)], [n for n in notes if TECHNICAL_NOTES.search(n)])
+
+
+def is_thin(script, brief) -> bool:
+    return bool(brief.target_words) and script.word_count < THIN_SCRIPT * brief.target_words
 
 
 def _approval(video_id: str) -> None:
@@ -484,6 +498,15 @@ def _approval(video_id: str) -> None:
     st.subheader("Review the plan")
     st.caption(f"{brief.name} · {brief.duration_s} seconds · {brief.aspect} · {brief.objective.replace('_', ' ')} · "
                f"{brief.tone} tone")
+    about, technical = split_notes(record)
+    if about:
+        st.markdown("**About this plan**")
+        for note in about:
+            st.write(f"- {note}")
+    if is_thin(script, brief):
+        st.warning(f"This script is short: {script.word_count} words, {script.word_count * 100 // brief.target_words}% "
+                   f"of the {brief.target_words} a {brief.duration_s} second video has room for. Add highlights or "
+                   "more property details for a fuller script, or choose a shorter length.")
 
     st.markdown("**Script**")
     for index, line in enumerate(script.lines, start=1):
@@ -511,13 +534,12 @@ def _approval(video_id: str) -> None:
             if shot.overlay_text:
                 st.write("On screen: " + " · ".join(shot.overlay_text))
 
-    notes = _plain_notes(record)
-    if notes:
-        with st.expander(f"Notes about this plan ({len(notes)})", expanded=True):
-            for note in notes:
+    if technical:
+        with st.expander(f"Technical ({len(technical)})"):
+            for note in technical:
                 st.write(f"- {note}")
 
-    approve, replan = st.columns(2)
+    approve, replan, _ = st.columns([2.2, 1.2, 5.6])
     if approve.button("Approve and produce", type="primary", key=f"vt_approve_{video_id}"):
         try:
             video_jobs.start_produce(video_id)
@@ -534,7 +556,7 @@ def _approval(video_id: str) -> None:
             new_id = video_jobs.start_plan(request.property_id, request.overrides, offline=request.offline,
                                            draft=request.draft, refresh_ledger=request.refresh_ledger,
                                            prompt=request.prompt, brief_source=request.brief_source,
-                                           brief_notes=request.brief_notes)
+                                           brief_notes=request.brief_notes, sources=request.sources)
         except JobBusyError as exc:
             busy_notice(exc)
         except JobError as exc:
@@ -578,6 +600,26 @@ SOURCE_WORDS = {"model": "Read by the model, then checked against the property's
                 "rules": "Read by built-in rules (the model was not used)."}
 
 
+SOURCE_LABELS = {"toolbar": "Toolbar", "form": "Form (changed by you)", "prompt": "Your prompt",
+                 "saved defaults": "Saved defaults (video_input.json)", "default": "Built-in default"}
+NOT_RECORDED = "Not recorded (made before sources were kept)"
+
+
+def brief_rows(brief, sources: dict[str, str]) -> list[dict]:
+    """The final brief, option by option, with where each value came from (see video_box.option_sources)."""
+    voices = voice_choices()
+    models = {i: s.label for i, s in selector.load_catalog().items()}
+    shown = [("Length", "duration_s", f"{brief.duration_s} seconds"), ("Shape", "aspect", brief.aspect),
+             ("Objective", "objective", brief.objective.replace("_", " ").capitalize()),
+             ("Audience", "audience", brief.audience or "—"), ("Tone", "tone", brief.tone.capitalize()),
+             ("Highlights", "highlights", "; ".join(brief.highlights) or "—"),
+             ("Call to action", "cta", brief.cta_text or "—"), ("Music mood", "music_mood", brief.music_mood or "—"),
+             ("Voice", "voice", voices.get(brief.voice or default_voice(), brief.voice)),
+             ("Model", "model", "Auto" if brief.model == "auto" else models.get(brief.model, brief.model))]
+    return [{"Option": name, "Value": value, "From": SOURCE_LABELS.get(sources.get(key, ""), NOT_RECORDED)}
+            for name, key, value in shown]
+
+
 def _prompt_panel(video_id: str) -> None:
     """The prompt this video was made from, how it was read, and what was left out or not used."""
     record = repository.get_generation(video_id)
@@ -590,6 +632,9 @@ def _prompt_panel(video_id: str) -> None:
             st.caption(SOURCE_WORDS.get(request.brief_source, request.brief_source))
         for note in request.brief_notes:
             st.write(f"- {note}")
+        if record.brief is not None:
+            st.markdown("**The brief this video was planned with**")
+            st.table(brief_rows(record.brief, request.sources))
 
 
 def _video(video_id: str) -> None:

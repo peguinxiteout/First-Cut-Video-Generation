@@ -387,7 +387,10 @@ def test_with_no_property_the_page_says_what_to_do(tmp_path):
 def test_the_photographs_of_the_chosen_property_are_shown_above_the_prompt(folder):
     at = _choose(_app().run())
     assert not at.exception
-    assert any("photographs" in str(c.value) for c in at.caption) and len(at.get("imgs") or at.get("image")) == 1
+    assert any("photographs" in str(c.value) for c in at.caption)
+    strips = [str(m.value) for m in at.markdown if 'class="vt-strip"' in str(m.value)]
+    assert len(strips) == 1 and strips[0].count("<img ") >= 3                       # one row of pictures, as data addresses
+    assert "overflow-x: auto" in " ".join(str(m.value) for m in at.markdown)         # that scrolls sideways
 
 
 @pytest.mark.parametrize("property_id,prompt,disabled", [
@@ -511,7 +514,10 @@ def test_plan_off_reads_the_prompt_and_starts_the_full_job_with_the_toolbar_on_t
                          "highlights": ["Swimming pool"], "model": "kenburns"}          # the toolbar's, over the prompt's
     assert flags == {"offline": False, "draft": False, "auto_approve": True,
                      "prompt": "A 30 second reel to launch it for families", "brief_source": "model",
-                     "brief_notes": ["'helipad' is not in this property's details; left out."]}
+                     "brief_notes": ["'helipad' is not in this property's details; left out."],
+                     "sources": {"duration_s": "toolbar", "aspect": "toolbar", "objective": "prompt",
+                                 "audience": "prompt", "tone": "default", "highlights": "prompt", "cta": "default",
+                                 "music_mood": "default", "voice": "default", "model": "toolbar"}}
     assert at.query_params["video"] in ("vid_stub000001", ["vid_stub000001"])
 
 
@@ -651,6 +657,9 @@ def test_plan_on_takes_the_prompts_value_for_untouched_fields_and_keeps_the_pers
     assert overrides["tone"] == "warm" and overrides["creative_direction"] == "Slow and calm"   # changed: the person's
     assert overrides["duration_s"] == 30 and overrides["aspect"] == "9:16" and overrides["model"] == "auto"
     assert flags["auto_approve"] is False and flags["brief_source"] == "model" and flags["brief_notes"] == ["a note"]
+    assert flags["sources"] == {"duration_s": "prompt", "aspect": "default", "objective": "prompt", "audience": "prompt",
+                                "tone": "form", "highlights": "prompt", "cta": "prompt", "music_mood": "default",
+                                "voice": "default", "model": "default"}
     assert flags["prompt"] == "A 30 second reel to launch it"
     assert at.query_params["video"] in ("vid_stub000001", ["vid_stub000001"])
 
@@ -785,8 +794,7 @@ def test_the_approval_view_shows_the_script_the_shots_and_the_notes(folder, call
     assert "fills the frame" in text or "whole photograph" in text
     assert "Closing card" in text and "On screen:" in text
     assert [b.label for b in at.button if b.key and b.key.startswith("vt_")][-2:] == ["Approve and produce", "Re-plan"]
-    if record.notes:
-        assert any("Notes about this plan" in e.label for e in at.expander)
+    assert not any("Notes about this plan" in e.label for e in at.expander)
 
 
 def test_approving_starts_the_produce_job(folder, calls):
@@ -819,7 +827,7 @@ def test_re_plan_starts_a_new_plan_from_the_stored_request_and_keeps_the_old_one
     assert property_id == record.request.property_id == PROPERTY
     assert overrides == {"audience": "families"}
     assert flags == {"offline": True, "draft": True, "refresh_ledger": False, "prompt": "", "brief_source": "",
-                     "brief_notes": []}
+                     "brief_notes": [], "sources": {}}
     assert at.query_params["video"] in ("vid_stub000001", ["vid_stub000001"])
     old = repository.get_generation(record.video_id)
     assert old.status == "planned" and old.script == record.script and (Path(old.output_dir) / PLAN_STATE_FILE).is_file()
@@ -875,13 +883,14 @@ def test_a_failure_with_no_video_is_plain_and_shows_the_log(folder, tmp_path):
 def test_re_plan_keeps_the_prompt_and_what_was_made_of_it(folder, calls):
     record = _planned(folder)
     record.request = record.request.model_copy(update={"prompt": "A calm reel", "brief_source": "model",
-                                                       "brief_notes": ["a note"]})
+                                                       "brief_notes": ["a note"], "sources": {"tone": "form"}})
     repository.save_generation(record)
     at = _app(video=record.video_id).run()
     at.button(key=f"vt_replan_{record.video_id}").click().run()
 
     (_, _, flags), = calls["plan"]
     assert (flags["prompt"], flags["brief_source"], flags["brief_notes"]) == ("A calm reel", "model", ["a note"])
+    assert flags["sources"] == {"tone": "form"}
     assert flags.get("auto_approve") in (None, False)
 
 
@@ -935,3 +944,145 @@ def test_a_video_made_from_the_form_has_no_prompt_panel(folder, calls):
     planned = _planned(folder)
     at = _app(video=planned.video_id).run()
     assert _prompt_panel(at) is None and "Review the plan" in _shown(at)
+
+
+# -- where each option came from ---------------------------------------------------------------------------------
+
+def test_a_value_comes_from_the_first_of_the_toolbar_the_form_the_prompt_the_saved_file_or_the_default():
+    toolbar = video_box.Toolbar(PROPERTY, "p", length=10)
+    sources = video_box.option_sources(toolbar, form_changed={"tone", "audience"},
+                                       prompt_keys={"duration_s", "audience", "objective", "tone", "cta"},
+                                       saved={"tone", "highlights", "objective", "voice"})
+    assert sources == {"duration_s": "toolbar", "aspect": "default", "objective": "prompt", "audience": "form",
+                       "tone": "form", "highlights": "saved defaults", "cta": "prompt", "music_mood": "default",
+                       "voice": "saved defaults", "model": "default"}
+
+
+def test_a_chosen_model_or_offline_is_the_toolbars():
+    assert video_box.option_sources(video_box.Toolbar(PROPERTY, "p", model="kenburns"), set(), set(), set())["model"] \
+        == "toolbar"
+    assert video_box.option_sources(video_box.Toolbar(PROPERTY, "p", offline=True), set(), set(), set())["model"] \
+        == "toolbar"
+    assert video_box.option_sources(video_box.Toolbar(PROPERTY, "p"), set(), set(), {"model"})["model"] == "saved defaults"
+
+
+def test_the_saved_keys_are_those_of_the_property_file(folder):
+    assert video_box.saved_keys(folder) == set()
+    (folder / "video_input.json").write_text(json.dumps({"tone": "warm", "voice": "male"}), encoding="utf-8")
+    assert video_box.saved_keys(folder) == {"tone", "voice"}
+    (folder / "video_input.json").write_text("{not json", encoding="utf-8")
+    assert video_box.saved_keys(folder) == set()
+
+
+def test_plan_off_keeps_where_each_option_came_from(folder, calls, read):
+    (folder / "video_input.json").write_text(json.dumps({"voice": "male", "tone": "warm"}), encoding="utf-8")
+    read.result = PromptBriefResult(PromptBrief(tone="refined", objective="launch"), [], "rules")
+    at = _app().run()
+    at.radio(key="vt_length").set_value(30)
+    at = _choose(at)
+    at.button(key="vt_send").click().run()
+
+    sources = calls["plan"][0][2]["sources"]
+    assert sources["duration_s"] == "toolbar" and sources["tone"] == "prompt" and sources["objective"] == "prompt"
+    assert sources["voice"] == "saved defaults" and sources["aspect"] == "default" and sources["cta"] == "default"
+
+
+def test_the_brief_table_says_where_each_value_came_from(folder, calls):
+    record = _planned(folder)
+    request = record.request.model_copy(update={
+        "prompt": "A calm reel", "brief_source": "rules",
+        "sources": {"duration_s": "toolbar", "aspect": "default", "objective": "prompt", "audience": "form",
+                    "tone": "saved defaults", "highlights": "prompt", "cta": "default", "music_mood": "default",
+                    "voice": "default", "model": "toolbar"}})
+    record.request = request
+    repository.save_generation(record)
+    at = _app(video=record.video_id).run()
+
+    (table,) = at.table
+    rows = table.value.to_dict("records")
+    assert [r["Option"] for r in rows] == ["Length", "Shape", "Objective", "Audience", "Tone", "Highlights",
+                                           "Call to action", "Music mood", "Voice", "Model"]
+    by = {r["Option"]: r for r in rows}
+    assert by["Length"]["Value"] == "15 seconds" and by["Length"]["From"] == "Toolbar"
+    assert by["Audience"]["Value"] == "families" and by["Audience"]["From"] == "Form (changed by you)"
+    assert by["Objective"]["From"] == "Your prompt" and by["Tone"]["From"] == "Saved defaults (video_input.json)"
+    assert by["Shape"]["From"] == "Built-in default" and by["Model"]["Value"] in ("Auto", "Pan-and-zoom (free)")
+    assert by["Voice"]["Value"].startswith("Professional, Indian English")
+
+
+def test_a_video_made_before_sources_were_kept_says_so_in_the_table(folder, calls):
+    record = _planned(folder)
+    record.request = record.request.model_copy(update={"prompt": "A calm reel", "brief_source": "model"})
+    repository.save_generation(record)
+    rows = _app(video=record.video_id).run().table[0].value.to_dict("records")
+    assert {r["From"] for r in rows} == {video_tab.NOT_RECORDED}
+
+
+# -- the review page: about this plan, technical, a short script --------------------------------------------------
+
+TECHNICAL = ["Fact ledger from the cache (made 2026-11-05 by gemini:gemini-3.6-flash): the same property, documents, "
+             "model and prompt as then. --refresh-ledger asks the model again.",
+             "16 pictures read by a vision model (Vision: 16 from the cache.).",
+             "13 usable photographs; set aside: map_location.webp (a map, not a photograph).",
+             "Blocked by the run's policy: role 'x' may not be asked in this run."]
+ABOUT = ["Left out of the script: 'Wellness Garden and Pet Park'. No photograph shows it.",
+         "The script is 34 words against a target of 59: add highlights or more property details for a fuller script.",
+         "No RERA number is given for this property, so the closing card shows none.",
+         "The shot for 'Outdoor Fitness Area, all on site.' would have shown a.webp again: no other photograph shows "
+         "court, so it is joined to the shot before, which is longer."]
+
+
+def _with_notes(folder, notes, target_words=None) -> VideoGenerationRecord:
+    record = _planned(folder)
+    record.notes = notes
+    if target_words:
+        record.brief.target_words = target_words
+    repository.save_generation(record)
+    return record
+
+
+def test_the_plans_notes_are_split_into_about_this_plan_and_technical(folder):
+    about, technical = video_tab.split_notes(SimpleNamespace(notes=[*TECHNICAL[:2], *ABOUT, *TECHNICAL[2:]],
+                                                             defects=[ABOUT[0], "A defect."]))
+    assert about == [*ABOUT, "A defect."] and technical == TECHNICAL
+
+
+def test_the_review_page_shows_about_this_plan_first_and_folds_the_technical_notes(folder):
+    record = _with_notes(folder, [*TECHNICAL, *ABOUT])
+    at = _app(video=record.video_id).run()
+
+    assert not at.exception
+    assert "**About this plan**" in [str(m.value) for m in at.markdown]
+    written = [str(m.value) for m in at.markdown]
+    for note in ABOUT:
+        assert f"- {note}" in written
+    (technical,) = [e for e in at.expander if e.label.startswith("Technical")]
+    assert technical.label == "Technical (4)" and technical.proto.expanded is False
+    assert [str(m.value) for m in technical.markdown] == [f"- {n}" for n in TECHNICAL]
+    assert all(written.count(f"- {n}") == 1 for n in TECHNICAL)                  # once, and that is inside the fold
+    assert not any(f"- {n}" in [str(m.value) for m in technical.markdown] for n in ABOUT)
+
+
+def test_a_plan_with_no_technical_notes_has_no_technical_section(folder):
+    record = _with_notes(folder, ABOUT)
+    assert not [e for e in _app(video=record.video_id).run().expander if e.label.startswith("Technical")]
+
+
+@pytest.mark.parametrize("words,target,short", [(34, 59, True), (42, 59, False), (40, 59, True), (0, 59, True),
+                                               (35, 50, False), (34, 50, True)])
+def test_a_script_under_70_percent_of_its_target_is_flagged(words, target, short):
+    brief = SimpleNamespace(target_words=target)
+    assert video_tab.is_thin(SimpleNamespace(word_count=words), brief) is short
+    assert video_tab.is_thin(SimpleNamespace(word_count=words), SimpleNamespace(target_words=0)) is False
+
+
+def test_the_review_page_warns_above_the_script_when_it_is_short(folder):
+    record = _planned(folder)
+    words = record.script.word_count
+    for target, flagged in ((words * 3, True), (words, False)):
+        record.brief.target_words = target
+        repository.save_generation(record)
+        warnings = [w.value for w in _app(video=record.video_id).run().warning if "This script is short" in w.value]
+        assert bool(warnings) is flagged
+        if flagged:
+            assert f"{words} words, {words * 100 // target}% of the {target}" in warnings[0]

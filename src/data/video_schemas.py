@@ -439,6 +439,9 @@ class VideoRequest(BaseModel):
     prompt: str = ""
     brief_source: str = ""
     brief_notes: list[str] = Field(default_factory=list)
+    # Where each option of the brief came from: the toolbar, the form, the prompt, the property's saved
+    # defaults (video_input.json) or the built-in default. Empty for a video made before these were kept.
+    sources: dict[str, str] = Field(default_factory=dict)
 
 
 PLAN_STATE_VERSION = 1

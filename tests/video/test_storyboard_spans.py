@@ -2,6 +2,8 @@
 shots one after the other."""
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from src.agents.video import storyboard as sb
@@ -63,6 +65,19 @@ def test_when_no_other_photograph_shows_it_the_two_shots_become_one_longer_shot(
     assert len(board.shots) < plan.brief.n_shots and abs(board.total_seconds - 15.0) < 0.1
     assert any("joined to the shot before" in n and "pool" in n for n in board.notes)
     assert _no_adjacent_repeat(board) and sb.validate_plan(board, plan.brief, plan.assets, plan.image_plan) == []
+
+
+def test_a_joined_shot_is_named_by_its_line_and_photograph_not_by_a_number(tmp_path):
+    plan = _tagged(tmp_path)
+    ids = _ids(plan)
+    line = ScriptLine(text="The pool, on site, open all day, all year round, for everyone who lives here.", role="feature",
+                      tags=["pool"], photo=ids["swimming_pool.jpg"])
+    board = _board(plan, _script(ScriptLine(text="Hi.", role="hook"), line, ScriptLine(text="Book.", role="cta")))
+
+    notes = [n for n in board.notes if "joined to the shot before" in n]
+    assert notes and any(n.startswith("The shot for 'The pool, on site, open all day, all year round, for everyone "
+                                      "who lives here.' would have shown swimming_pool.jpg again") for n in notes)
+    assert not any(re.search(r"\bShot \d", n) for n in notes)     # the shot it would have been is never made: no number to match
 
 
 def test_a_merged_shot_carries_the_lines_of_both_and_keeps_the_chip_of_the_first(tmp_path):

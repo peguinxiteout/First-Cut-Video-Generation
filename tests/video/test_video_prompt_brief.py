@@ -226,6 +226,45 @@ def test_a_highlight_that_joins_two_things_the_property_has_separately_is_left_o
     assert "'rooftop pool' is not in this property's details; left out." in result.notes
 
 
+SENTENCE = ("Cut to outdoor amenities featuring landscaped gardens, an open-air fitness area, and multi-sport courts, "
+            "finishing on a dynamic low-angle shot of the illuminated towers against the evening sky.")
+
+
+def test_a_clause_a_list_ran_into_is_ignored_without_a_note(folder):
+    result = read(SENTENCE, folder)
+    assert result.brief.highlights == ["Yoga lawn", "Gymnasium"]
+    left_out = [n for n in result.notes if "left out" in n]
+    assert left_out == ["'multi-sport courts' is not in this property's details; left out."]     # an amenity it lacks
+    assert not any("finishing" in n for n in result.notes)
+
+
+def test_the_models_highlights_get_the_same_rule(folder, model):
+    answers(model, highlights=["Swimming pool", "finishing", "gliding down to the entrance", "Rooftop helipad", "Parking"])
+    result = prompt_brief.read_prompt(SENTENCE, folder)
+    assert result.brief.highlights == ["Swimming pool"]
+    assert [n for n in result.notes if "left out" in n] == [
+        "'Rooftop helipad' is not in this property's details; left out.",
+        "'Parking' is not in this property's details; left out."]                # an -ing word that is a thing
+
+
+@pytest.mark.parametrize("phrase,looks", [
+    ("helipad", True), ("rooftop helipad", True), ("swimming pool", True), ("multi-sport courts", True),
+    ("parking", True), ("concierge desk", True),
+    ("finishing", False), ("gliding down to the entrance", False), ("to the entrance", False),
+    ("overlooking the skyline", False), ("smoothly", False), ("a dynamic low angle shot of the towers", False),
+    ("", False)])
+def test_what_looks_like_an_amenity(phrase, looks):
+    assert prompt_brief._looks_like_amenity(phrase, prompt_brief._config()) is looks
+
+
+def test_a_figure_in_a_phrase_that_is_not_an_amenity_is_ignored_too(folder, model):
+    answers(model, highlights=["finishing in 2030", "Clubhouse of 40,000 sq ft"])
+    result = prompt_brief.read_prompt("highlight the clubhouse", folder)
+    assert result.brief.highlights is None                                 # the model's list replaced the rules', and both items went
+    assert not any("finishing" in n for n in result.notes)
+    assert any("'Clubhouse of 40,000 sq ft' has a figure (40,000)" in n for n in result.notes)
+
+
 def test_a_selling_point_can_be_a_highlight(folder):
     result = read("Feature the metro station", folder)
     assert result.brief.highlights == ["Two minutes from the Baner metro station"]
