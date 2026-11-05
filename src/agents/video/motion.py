@@ -12,6 +12,17 @@ to pan-and-zoom on its own; a shot that cannot even be cut (an unreadable
 picture, a generated shot with no image model) becomes a title card in the
 palette and the reason is recorded.
 
+LAYOUT. A photograph is cut to the frame ("fill") only when that enlarges its
+pixels at most `layout.fill_max_upscale` (agents/video/layout.py) at the worst
+moment of the move; otherwise the whole photograph is laid across the frame on
+a blurred copy of itself ("fit", models/video_gen/fit.py) and only it moves.
+The layout and the peak upscale of every shot are recorded on its clip. They
+are worked out for the FINAL frame size whatever size is being rendered, so a
+draft shows the layout the final video will have.
+
+LENGTH. Every clip is made a little longer than its shot, to feed the
+crossfades at its two ends (rendering/transitions.py).
+
 A CARD is the palette as a background with the developer's real logo set on a
 white plate (a logo is usually a JPEG on white); the words on it are drawn by
 the overlay step.
@@ -25,16 +36,20 @@ from typing import Optional
 
 from PIL import Image, ImageDraw, ImageOps
 
+from src.agents.video import layout as layouts
+from src.core.config import load_yaml_config
 from src.data.video_schemas import BrandKit, ClipResult, Shot, Storyboard, VideoBrief
-from src.models.video_gen import ImageToVideoRequest, VideoService, get_video_service
-from src.models.video_gen.kenburns import parse_focal
-from src.rendering import ffmpeg
+from src.models.video_gen import ImageToVideoRequest, VideoService, fit, get_video_service
+from src.models.video_gen.kenburns import crop_box, parse_focal  # noqa: F401 - crop_box is part of this module's surface
+from src.rendering import ffmpeg, transitions
+from src.rendering.video_compose import shot_frames
 
 logger = logging.getLogger(__name__)
 
 MAX_KEYFRAME_SCALE = 2          # a keyframe is never kept larger than this many frame widths
 LOGO_MAX_WIDTH = 0.5            # of the frame
 LOGO_MAX_HEIGHT = 0.16
+LOGO_PAD = 0.04               # the plate's margin round the logo, of the frame width
 LOGO_CENTRE_Y = 0.32            # the logo's middle, from the top: above the words, clear of the safe-zone bottom
 DEFAULT_DARK, DEFAULT_ACCENT = "#1B1B1F", "#B98A5E"
 
@@ -49,23 +64,15 @@ class Keyframe:
 
 @dataclass
 class MotionResult:
+    storyboard: Storyboard
     keyframes: dict[int, str] = field(default_factory=dict)
     clips: list[ClipResult] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
 
 
-def crop_box(src_w: int, src_h: int, out_aspect: float, focal: str) -> tuple[int, int, int, int]:
-    """The largest window of the picture in the video's shape, placed the way
-    CSS object-position places it: "50% 50%" centres it, "0% 50%" pushes it
-    against the left edge, "100% 50%" the right. (focal.focal_point speaks this.)"""
-    fx, fy = parse_focal(focal)
-    if src_w / src_h > out_aspect:
-        win_w, win_h = round(src_h * out_aspect), src_h
-        left, top = round(fx * (src_w - win_w)), 0
-    else:
-        win_w, win_h = src_w, round(src_w / out_aspect)
-        left, top = 0, round(fy * (src_h - win_h))
-    return left, top, left + win_w, top + win_h
+def _size(path: str | Path) -> tuple[int, int]:
+    with Image.open(path) as handle:
+        return ImageOps.exif_transpose(handle).size
 
 
 def make_keyframe(source: str | Path, focal: str, out_w: int, out_h: int, dest: Path) -> Keyframe:
@@ -93,6 +100,31 @@ def _blend(a: tuple[int, int, int], b: tuple[int, int, int], t: float) -> tuple[
     return tuple(round(x + (y - x) * t) for x, y in zip(a, b))
 
 
+def _logo_size(width: int, height: int, out_w: int, out_h: int) -> tuple[int, int]:
+    # at most twice its own size: a 200 px logo blown up further is only blur
+    scale = min(out_w * LOGO_MAX_WIDTH / width, out_h * LOGO_MAX_HEIGHT / height, 2.0)
+    return max(1, round(width * scale)), max(1, round(height * scale))
+
+
+def _plate(logo_w: int, logo_h: int, out_w: int, out_h: int) -> tuple[int, int, int, int]:
+    pad = round(out_w * LOGO_PAD)
+    return (round((out_w - logo_w) / 2) - pad, round(out_h * LOGO_CENTRE_Y - logo_h / 2) - pad,
+            round((out_w + logo_w) / 2) + pad, round(out_h * LOGO_CENTRE_Y + logo_h / 2) + pad)
+
+
+def logo_plate(brand: BrandKit, out_w: int, out_h: int) -> Optional[tuple[int, int, int, int]]:
+    """Where the white plate behind the logo sits on a card (left, top, right,
+    bottom), or None when the card has no readable logo."""
+    if not brand.logo_path:
+        return None
+    try:
+        with Image.open(brand.logo_path) as handle:
+            width, height = ImageOps.exif_transpose(handle).size
+    except Exception:  # noqa: BLE001 - the card is drawn without it too
+        return None
+    return _plate(*_logo_size(width, height, out_w, out_h), out_w, out_h)
+
+
 def render_card(brand: BrandKit, out_w: int, out_h: int, dest: Path) -> bool:
     """The card's still: the palette's dark ground, a little lighter towards
     the foot, and the logo on a white plate. True when a logo was drawn."""
@@ -114,12 +146,10 @@ def render_card(brand: BrandKit, out_w: int, out_h: int, dest: Path) -> bool:
                     flat.paste(logo, mask=logo.split()[-1])
                     logo = flat
                 logo = logo.convert("RGB")
-            # at most twice its own size: a 200 px logo blown up further is only blur
-            scale = min(out_w * LOGO_MAX_WIDTH / logo.width, out_h * LOGO_MAX_HEIGHT / logo.height, 2.0)
-            logo = logo.resize((max(1, round(logo.width * scale)), max(1, round(logo.height * scale))), Image.LANCZOS)
-            pad = round(out_w * 0.04)
-            plate = (round((out_w - logo.width) / 2) - pad, round(out_h * LOGO_CENTRE_Y - logo.height / 2) - pad,
-                     round((out_w + logo.width) / 2) + pad, round(out_h * LOGO_CENTRE_Y + logo.height / 2) + pad)
+            logo_w, logo_h = _logo_size(logo.width, logo.height, out_w, out_h)
+            logo = logo.resize((logo_w, logo_h), Image.LANCZOS)
+            plate = _plate(logo_w, logo_h, out_w, out_h)
+            pad = round(out_w * LOGO_PAD)
             draw.rounded_rectangle(plate, radius=pad, fill="white")
             image.paste(logo, (plate[0] + pad, plate[1] + pad))
             drawn = True
@@ -136,41 +166,73 @@ def still_clip(png: Path, seconds: float, fps: int, dest: Path) -> None:
                 "-r", str(fps), "-c:v", "libx264", "-crf", "16", "-pix_fmt", "yuv420p", str(dest)])
 
 
-def _card_clip(shot: Shot, brief: VideoBrief, brand: BrandKit, shots_dir: Path, dest: Path) -> bool:
+def _card_clip(shot: Shot, brief: VideoBrief, brand: BrandKit, shots_dir: Path, dest: Path, seconds: float) -> bool:
     png = shots_dir / f"card_{shot.index:02d}.png"
     drawn = render_card(brand, brief.width, brief.height, png)
-    still_clip(png, shot.seconds, brief.fps, dest)
+    still_clip(png, seconds, brief.fps, dest)
     return drawn
+
+
+def _fill_clip(shot: Shot, brief: VideoBrief, shots_dir: Path, dest: Path, seconds: float,
+               service: VideoService, notes: list[str], label: str):
+    keyframe = make_keyframe(shot.source_path, shot.focal, brief.width, brief.height,
+                             shots_dir / f"keyframe_{shot.index:02d}.png")
+    if keyframe.upscaled_from:
+        notes.append(f"{label}: the photograph is small ({keyframe.upscaled_from[0]}x"
+                     f"{keyframe.upscaled_from[1]} after cropping) and was enlarged.")
+    clip = service.generate(ImageToVideoRequest(
+        image_path=keyframe.path, prompt=shot.motion_prompt, camera=shot.camera, duration_s=seconds,
+        width=brief.width, height=brief.height, fps=brief.fps), dest)
+    return clip, str(keyframe.path)
+
+
+def _fit_clip(shot: Shot, brief: VideoBrief, shots_dir: Path, dest: Path, seconds: float, config: dict):
+    keyframe = shots_dir / f"keyframe_{shot.index:02d}.png"
+    clip = fit.render(shot.source_path, shot.camera, seconds, brief.width, brief.height, brief.fps, dest,
+                      focal=shot.focal, dim=config["dim"], blur_px=config["blur_px"], centre_y=config["centre_y"],
+                      zoom=config["zoom"], keyframe_path=keyframe)
+    return clip, str(keyframe)
 
 
 def run(storyboard: Storyboard, brief: VideoBrief, brand: BrandKit, out_dir: Path,
         service: Optional[VideoService] = None) -> MotionResult:
     service = service or get_video_service(brief.model, brief.duration_s)
     shots_dir = out_dir / "shots"
-    result = MotionResult()
+    board = storyboard.model_copy(deep=True)
+    result = MotionResult(board)
     if service.note:
         result.notes.append(service.note)
 
-    for shot in storyboard.shots:
+    layout_config = layouts.settings()
+    final_w, final_h = load_yaml_config("video/pacing.yaml")["sizes"]["final"][brief.aspect]
+    frames = shot_frames([s.seconds for s in board.shots], brief.fps)
+    margin = transitions.margins(frames, transitions.transition_frames(
+        load_yaml_config("video/pacing.yaml")["compose"]["transition_s"], brief.fps))
+
+    for shot, n, (head, tail) in zip(board.shots, frames, margin):
         dest = shots_dir / f"shot_{shot.index:02d}.mp4"
         label = f"Shot {shot.index + 1}"
+        seconds = (n + head + tail) / brief.fps           # the shot, and what its crossfades borrow
         reason = ""
         if shot.kind == "real":
             try:
-                keyframe = make_keyframe(shot.source_path, shot.focal, brief.width, brief.height,
-                                         shots_dir / f"keyframe_{shot.index:02d}.png")
-                if keyframe.upscaled_from:
-                    result.notes.append(f"{label}: the photograph is small ({keyframe.upscaled_from[0]}x"
-                                        f"{keyframe.upscaled_from[1]} after cropping) and was enlarged.")
-                clip = service.generate(ImageToVideoRequest(
-                    image_path=keyframe.path, prompt=shot.motion_prompt, camera=shot.camera,
-                    duration_s=shot.seconds, width=brief.width, height=brief.height, fps=brief.fps),
-                    dest)
-                result.keyframes[shot.index] = str(keyframe.path)
+                width, height = _size(shot.source_path)
+                chosen = layouts.choose(width, height, final_w, final_h, shot.focal, shot.camera, layout_config)
+                if chosen.layout == "fit":
+                    clip, keyframe = _fit_clip(shot, brief, shots_dir, dest, seconds, layout_config["fit"])
+                    result.notes.append(
+                        f"{label}: laid out as fit, the whole photograph on a blurred copy: filling the frame "
+                        f"would enlarge it {chosen.fill_peak:.2f}x (limit {layout_config['fill_max_upscale']:g}x); "
+                        f"peak enlargement {chosen.peak_upscale:.2f}x.")
+                else:
+                    clip, keyframe = _fill_clip(shot, brief, shots_dir, dest, seconds, service, result.notes, label)
+                shot.layout, shot.peak_upscale = chosen.layout, chosen.peak_upscale
+                result.keyframes[shot.index] = keyframe
                 result.clips.append(ClipResult(
                     shot_index=shot.index, path=str(clip.path), provider=clip.provider, model_id=clip.model_id,
-                    mode="kenburns" if clip.provider == "kenburns" else "model", ok=True, reason=clip.reason,
-                    from_cache=clip.from_cache, duration_s=clip.duration_s, cost_usd=clip.cost_usd))
+                    mode="kenburns" if clip.provider == "kenburns" else "model", layout=chosen.layout,
+                    peak_upscale=chosen.peak_upscale, ok=True, reason=clip.reason, from_cache=clip.from_cache,
+                    duration_s=clip.duration_s, cost_usd=clip.cost_usd))
                 continue
             except Exception as exc:  # noqa: BLE001 - a shot that cannot be made is a card, not a failed run
                 reason = f"{type(exc).__name__}: {exc}"
@@ -178,12 +240,12 @@ def run(storyboard: Storyboard, brief: VideoBrief, brand: BrandKit, out_dir: Pat
             reason = "generated pictures are not made yet"
 
         try:
-            _card_clip(shot, brief, brand, shots_dir, dest)
+            _card_clip(shot, brief, brand, shots_dir, dest, seconds)
         except Exception as exc:  # noqa: BLE001 - the card is the last resort; say it failed
             raise RuntimeError(f"{label} could not be made, not even as a card: {exc}") from exc
         failed = bool(reason)
         if failed:
             result.notes.append(f"{label} is a title card: {reason}.")
         result.clips.append(ClipResult(shot_index=shot.index, path=str(dest), mode="card", ok=not failed,
-                                       reason=reason, duration_s=shot.seconds))
+                                       reason=reason, duration_s=round(seconds, 3)))
     return result

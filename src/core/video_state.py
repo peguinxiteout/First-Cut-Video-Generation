@@ -14,7 +14,7 @@ from typing import Any, Optional, TypedDict
 
 from src.data.schemas import ImageAnalysis, ImageAsset, PropertyInput, PropertyKnowledge
 from src.data.video_schemas import (
-    BrandKit, ClipResult, LineTiming, OverlayItem, RankedAsset, Storyboard, VideoBrief, VideoEvaluationResult,
+    BrandKit, ClipResult, LineTiming, MusicInfo, OverlayItem, RankedAsset, Storyboard, VideoBrief, VideoEvaluationResult,
     VideoInput, VideoMeasurements, VideoScript,
 )
 
@@ -26,6 +26,7 @@ class VideoState(TypedDict, total=False):
     video_overrides: dict[str, Any]  # command-line options, laid over video_input.json
     offline: bool                   # take every fallback; call no model
     draft: bool                     # render small and fast, for previews
+    refresh_ledger: bool            # ask the model for the fact ledger again, whatever the cache holds
     property_input: PropertyInput
     images: list[ImageAsset]
     video_input: VideoInput
@@ -47,6 +48,7 @@ class VideoState(TypedDict, total=False):
     voice_tracks: list[str]
     line_timings: list[LineTiming]
     music_track: Optional[str]
+    music_info: MusicInfo
     beat_times: list[float]
     keyframes: dict[int, str]       # shot index -> still the clip starts from
     clips: list[ClipResult]

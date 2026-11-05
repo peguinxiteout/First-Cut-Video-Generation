@@ -1,8 +1,10 @@
 """Node 9, compose: the clips, the text and the voice, as one MP4.
 
     picture   every clip at one frame rate and size, cut to its exact frame
-              count and joined; each overlay laid over its shot with a fade;
-              encoded once, as H.264 yuv420p
+              count, given the light grade (photographs only) and joined by
+              crossfades centred on the cuts (rendering/transitions.py); each
+              piece of text laid over with its own fade, and a slide up where it
+              has one; encoded once, as H.264 yuv420p
     voice     each line placed at its start time on a silent track of the full
               length; a music track, if there is one, goes under it and is
               ducked while the voice speaks
@@ -11,7 +13,7 @@
     mux       the picture is copied, the audio encoded as AAC, the moov atom
               moved to the front so the file plays while it downloads
 
-No colour grade yet. The only encoder is the ffmpeg that imageio-ffmpeg
+The only encoder is the ffmpeg that imageio-ffmpeg
 bundles (rendering/ffmpeg.py). If no MP4 comes out, this raises and the run
 fails: it is the one step with no fallback, because there is nothing to fall
 back to.
@@ -27,7 +29,7 @@ from typing import Optional
 
 from src.core.config import load_yaml_config
 from src.core.exceptions import RenderingError
-from src.rendering import ffmpeg
+from src.rendering import ffmpeg, transitions
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +42,8 @@ MONO = f"aresample={AUDIO_RATE},aformat=sample_fmts=fltp:channel_layouts=mono"
 @dataclass
 class ClipPart:
     path: Path
-    frames: int
+    frames: int                       # the shot's own length; a clip runs past it for its crossfades
+    grade: bool = False               # a photograph is graded; a card keeps the brand's exact colours
 
 
 @dataclass
@@ -48,6 +51,8 @@ class OverlayPart:
     path: Path
     start_s: float
     end_s: float
+    fade_s: float = 0.3
+    slide_px: int = 0                 # slides up from this far below over slide_s while it fades in
 
 
 @dataclass
@@ -64,6 +69,18 @@ class ComposeResult:
     notes: list[str] = field(default_factory=list)
 
 
+def thread_caps() -> tuple[int, int]:
+    """(decoder threads per clip, per overlay picture) from configs/video/styles.yaml."""
+    section = load_yaml_config("video/styles.yaml").get("compose") or {}
+    return max(1, int(section.get("decode_threads", 2))), max(1, int(section.get("overlay_threads", 1)))
+
+
+def output_caps() -> tuple[int, int]:
+    """(filter graph threads, x264 threads) from configs/video/styles.yaml."""
+    section = load_yaml_config("video/styles.yaml").get("compose") or {}
+    return max(1, int(section.get("filter_threads", 2))), max(1, int(section.get("encode_threads", 4)))
+
+
 def shot_frames(seconds: list[float], fps: int) -> list[int]:
     """Whole frames for every shot, so the total never drifts: each shot ends on
     the frame its cumulative time falls on."""
@@ -76,28 +93,58 @@ def shot_frames(seconds: list[float], fps: int) -> list[int]:
     return frames
 
 
+def grade_filter(config: dict) -> str:
+    """ffmpeg's eq for the light grade, or "" when it is off."""
+    if not config.get("enabled"):
+        return ""
+    return (f"eq=contrast={config['contrast']}:saturation={config['saturation']}:"
+            f"brightness={config['brightness']}")
+
+
 def _render_picture(clips: list[ClipPart], overlays: list[OverlayPart], width: int, height: int, fps: int,
-                    dest: Path, crf: int, preset: str, fade_s: float) -> None:
+                    dest: Path, crf: int, preset: str, grade: str, fade_frames: int, slide_s: float) -> None:
+    frames = [clip.frames for clip in clips]
+    found = transitions.fades(frames, fade_frames)
+    head_tail = transitions.margins(frames, fade_frames)
+    decode_threads, overlay_threads = thread_caps()
     inputs: list[str] = []
     for clip in clips:
-        inputs += ["-i", str(clip.path)]
+        inputs += ["-threads", str(decode_threads), "-i", str(clip.path)]   # every clip is open at once: keep each decoder small
     for ov in overlays:
-        inputs += ["-loop", "1", "-framerate", str(fps), "-t", f"{ov.end_s - ov.start_s:.3f}", "-i", str(ov.path)]
-    parts = [f"[{i}:v]fps={fps},scale={width}:{height}:force_original_aspect_ratio=increase:flags=lanczos,"
-             f"crop={width}:{height},setsar=1,format=yuv420p,tpad=stop_mode=clone:stop_duration={HOLD_S},"
-             f"trim=end_frame={clip.frames},setpts=PTS-STARTPTS[c{i}]" for i, clip in enumerate(clips)]
-    parts.append("".join(f"[c{i}]" for i in range(len(clips))) + f"concat=n={len(clips)}:v=1:a=0[base]")
-    label = "base"
+        inputs += ["-threads", str(overlay_threads), "-loop", "1", "-framerate", str(fps),
+                   "-t", f"{ov.end_s - ov.start_s:.3f}", "-i", str(ov.path)]
+    parts = []
+    for i, (clip, (head, tail)) in enumerate(zip(clips, head_tail)):
+        eq = f"{grade}," if grade and clip.grade else ""
+        parts.append(f"[{i}:v]fps={fps},scale={width}:{height}:force_original_aspect_ratio=increase:flags=lanczos,"
+                     f"crop={width}:{height},setsar=1,{eq}format=yuv420p,tpad=stop_mode=clone:stop_duration={HOLD_S},"
+                     f"trim=end_frame={clip.frames + head + tail},setpts=PTS-STARTPTS[c{i}]")
+    if found:
+        label, edge = "c0", 0
+        for i, fade in enumerate(found):
+            edge += frames[i]
+            parts.append(f"[{label}][c{i + 1}]xfade=transition=fade:duration={fade.frames / fps:.4f}:"
+                         f"offset={(edge - fade.lead) / fps:.4f}[x{i}]")
+            label = f"x{i}"
+        base = label
+    else:
+        parts.append("".join(f"[c{i}]" for i in range(len(clips))) + f"concat=n={len(clips)}:v=1:a=0[base]")
+        base = "base"
+    label = base
     for j, ov in enumerate(overlays):
         seconds = ov.end_s - ov.start_s
-        f = min(fade_s, seconds / 2)
+        f = min(ov.fade_s, seconds / 2)
         parts.append(f"[{len(clips) + j}:v]format=rgba,fade=t=in:st=0:d={f:.3f}:alpha=1,"
                      f"fade=t=out:st={seconds - f:.3f}:d={f:.3f}:alpha=1,setpts=PTS+{ov.start_s:.3f}/TB[o{j}]")
-        parts.append(f"[{label}][o{j}]overlay=eof_action=pass:format=auto[b{j}]")
+        move = (f"y='{ov.slide_px}*pow(1-min(1,max(0,(t-{ov.start_s:.3f})/{slide_s})),3)':" if ov.slide_px else "")
+        parts.append(f"[{label}][o{j}]overlay={move}enable='between(t,{ov.start_s:.3f},{ov.end_s:.3f})':"
+                     f"eof_action=pass:format=auto[b{j}]")
         label = f"b{j}"
     parts.append(f"[{label}]format=yuv420p[vout]")
-    ffmpeg.run([*inputs, "-filter_complex", ";".join(parts), "-map", "[vout]", "-r", str(fps),
-                "-frames:v", str(sum(c.frames for c in clips)), "-c:v", "libx264", "-preset", preset,
+    filter_threads, encode_threads = output_caps()
+    ffmpeg.run([*inputs, "-filter_complex_threads", str(filter_threads), "-filter_complex", ";".join(parts),
+                "-map", "[vout]", "-r", str(fps), "-frames:v", str(sum(frames)), "-threads", str(encode_threads),
+                "-c:v", "libx264", "-preset", preset,
                 "-crf", str(crf), "-pix_fmt", "yuv420p", str(dest)])
 
 
@@ -148,7 +195,7 @@ def _normalise(source: Path, dest: Path, target: float, peak: float, lra: float)
 
 def compose(*, clips: list[ClipPart], overlays: list[OverlayPart], voices: list[VoicePart], out_path: Path,
             thumbnail_path: Path, width: int, height: int, fps: int, draft: bool, work_dir: Path,
-            hook_seconds: float, music_path: Optional[Path] = None) -> ComposeResult:
+            hook_seconds: float, music_path: Optional[Path] = None, grade: bool = True) -> ComposeResult:
     if not clips:
         raise RenderingError("There are no clips to compose.")
     config = load_yaml_config("video/pacing.yaml")
@@ -158,7 +205,8 @@ def compose(*, clips: list[ClipPart], overlays: list[OverlayPart], voices: list[
     silent, mix, level = work_dir / "picture.mp4", work_dir / "voice_mix.wav", work_dir / "voice_level.wav"
 
     _render_picture(clips, overlays, width, height, fps, silent, c["crf"][quality], c["preset"][quality],
-                    config["overlays"]["fade_s"])
+                    grade_filter(c["grade"]) if grade else "", transitions.transition_frames(c["transition_s"], fps),
+                    config["overlays"]["slide_s"])
     _mix_voice(voices, music_path, total_s, c["music_gain"], mix)
     notes = []
     note = _normalise(mix, level, c["loudness_lufs"], c["true_peak_db"], c["loudness_range"])

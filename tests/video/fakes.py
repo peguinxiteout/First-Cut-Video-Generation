@@ -99,3 +99,57 @@ def audio_response(data: bytes, mime_type: str = "audio/wav") -> FakeResponse:
 
 def wav_response(seconds: float = 0.5, rate: int = 24000) -> FakeResponse:
     return audio_response(pcm_to_wav(silence(seconds, rate), rate))
+
+
+def tone_wav(path: Path, seconds: float, rate: int = 44100, amplitude: float = 0.4, hz: float = 220.0) -> Path:
+    """A steady tone as a mono WAV: something with a level, for the music tests."""
+    import math
+    import struct
+    import wave
+
+    frames = b"".join(struct.pack("<h", round(32767 * amplitude * math.sin(2 * math.pi * hz * i / rate)))
+                      for i in range(round(seconds * rate)))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with wave.open(str(path), "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(rate)
+        handle.writeframes(frames)
+    return path
+
+
+class FakeMusic:
+    """A music provider that writes a tone and counts its calls. Give it an
+    exception instance to have it fail."""
+
+    cacheable = True
+    model_id = "fake-model"
+
+    def __init__(self, name: str = "fake", seconds: float = 12.0, cost_usd: float = 0.04, error: Exception | None = None,
+                 available: bool = True, cacheable: bool = True):
+        self.name, self.seconds, self.cost_usd, self.error = name, seconds, cost_usd, error
+        self._available, self.cacheable = available, cacheable
+        self.requests: list = []
+
+    def is_available(self) -> bool:
+        return self._available
+
+    def unavailable_reason(self) -> str:
+        return "" if self._available else f"{self.name} has no key"
+
+    def cache_key_parts(self, request) -> dict:
+        return {"model": self.model_id, "prompt": request.prompt}
+
+    def generate(self, request, dest: Path):
+        from src.models.music.base import MusicTrack
+        from src.models.speech.base import wav_duration
+
+        self.requests.append(request)
+        if self.error:
+            raise self.error
+        tone_wav(dest, self.seconds)
+        return MusicTrack(path=dest, provider=self.name, model_id=self.model_id, prompt=request.prompt,
+                          duration_s=wav_duration(dest), cost_usd=self.cost_usd)
+
+    def beat_times(self, track):
+        return []

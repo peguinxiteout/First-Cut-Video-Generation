@@ -3,7 +3,7 @@ The video generation workflow — LangGraph StateGraph, in two halves:
 
     PLAN      n_brief -> n_fact_ledger -> n_asset_audit -> n_script -> n_storyboard
     (approve) a person, or the CLI, sees the storyboard and may change it
-    PRODUCE   n_voice_music -> n_motion -> n_overlays -> n_compose
+    PRODUCE   n_voice_music -> n_motion -> n_overlays -> n_compose -> n_gate
 
 Image first, then motion: every shot starts from one of the person's own
 photographs and a video model (or pan-and-zoom) only adds camera movement.
@@ -17,13 +17,19 @@ tab shows are the step names in _STEP_NAMES.
 
 `run_plan_workflow()` runs the first half and saves a record with the status
 "planned"; script.json and storyboard.json are written beside it.
-`run_video_workflow()` runs both halves and saves "rendered" (the quality
-gate, and its own status, come next). A soft failure (a clip that falls back
+`run_video_workflow()` runs both halves and saves the gate's verdict as the status:
+"passed", "warned" or "failed" (a failed gate still keeps the MP4; qa.json beside it
+lists every check). A soft failure (a clip that falls back
 to pan-and-zoom, text drawn by the fallback renderer, a narration that does
 not fit) is recorded and never fails the run; only "no MP4 at all" does.
+
+A run reaches only what configs/video/policy.yaml allows (agents/video/
+policy.py): the other vendors' keys are blanked for its length and a call that
+would go to one is refused and written to the record's notes.
 """
 from __future__ import annotations
 
+import json
 import logging
 import uuid
 from collections import Counter
@@ -35,8 +41,10 @@ from langgraph.graph import END, StateGraph
 from src.agents.video import assets as asset_audit
 from src.agents.video import brief as brief_agent
 from src.agents.video import fact_ledger
+from src.agents.video import gate as gate_agent
 from src.agents.video import motion as motion_agent
 from src.agents.video import overlays as overlays_agent
+from src.agents.video import policy
 from src.agents.video import script as script_agent
 from src.agents.video import storyboard as storyboard_agent
 from src.agents.video import voice as voice_agent
@@ -44,7 +52,9 @@ from src.core.exceptions import WorkflowError
 from src.core.video_state import VideoState
 from src.data import video_repository as repository
 from src.data.schemas import AgentStepResult, WorkflowEvaluation
-from src.data.video_schemas import Storyboard, VideoGenerationRecord, VideoMeasurements
+from src.data.video_schemas import (
+    GateCheck, Storyboard, VideoEvaluationResult, VideoGate, VideoGenerationRecord, VideoMeasurements,
+)
 from src.observability import tracing
 from src.rendering import ffmpeg, video_compose
 from src.workflows._instrumentation import instrumented, make_step_log_var
@@ -52,7 +62,7 @@ from src.workflows._instrumentation import instrumented, make_step_log_var
 logger = logging.getLogger(__name__)
 
 _PLAN_STEPS = ["brief", "fact_ledger", "asset_audit", "script", "storyboard"]
-_PRODUCE_STEPS = ["voice_music", "motion", "overlays", "compose"]
+_PRODUCE_STEPS = ["voice_music", "motion", "overlays", "compose", "gate"]
 _STEP_NAMES = _PLAN_STEPS + _PRODUCE_STEPS
 
 _step_log_var = make_step_log_var("video_step_log")
@@ -97,8 +107,9 @@ def node_brief(state: VideoState) -> dict:
 @_instrumented("fact_ledger")
 def node_fact_ledger(state: VideoState) -> dict:
     knowledge, notes = fact_ledger.run(state["property_input"], state.get("documents_text", ""),
-                                       state.get("offline", False))
-    out = {"property_knowledge": knowledge}
+                                       state.get("offline", False), refresh=state.get("refresh_ledger", False))
+    said = [n for n in notes if n.startswith((fact_ledger.CACHE_NOTE, fact_ledger.REFRESH_NOTE))]
+    out = {"property_knowledge": knowledge, "notes": _more(state, "notes", said)}
     out.update(_report(state, "fact_ledger", f"{len(knowledge.facts)} facts, "
                        f"{len(knowledge.selling_points)} selling points", *notes))
     return out
@@ -143,9 +154,12 @@ def node_voice_music(state: VideoState) -> dict:
     result = voice_agent.run(state["script"], state["storyboard"], state["brief"], _out_dir(state))
     out = {"storyboard": result.storyboard, "line_timings": result.line_timings,
            "voice_tracks": result.voice_tracks, "voice_name": result.voice_name,
-           "music_track": result.music_track, "beat_times": result.beat_times,
+           "music_track": result.music_track, "music_info": result.music_info, "beat_times": result.beat_times,
            "defects": _more(state, "defects", result.defects), "notes": _more(state, "notes", result.notes)}
+    music = result.music_info
     out.update(_report(state, "voice_music", f"voice: {result.voice_name}",
+                       f"music: {music.provider}" + (f" ({music.model_id}, ${music.cost_usd:.2f})" if music.model_id
+                                                     else ""),
                        f"{len(result.line_timings)} lines spoken; the video is {result.total_s:.1f} s",
                        *result.notes, *result.defects))
     return out
@@ -155,8 +169,11 @@ def node_voice_music(state: VideoState) -> dict:
 def node_motion(state: VideoState) -> dict:
     result = motion_agent.run(state["storyboard"], state["brief"], state["brand_kit"], _out_dir(state))
     modes = Counter(c.provider if c.mode != "card" else "card" for c in result.clips)
-    out = {"keyframes": result.keyframes, "clips": result.clips, "notes": _more(state, "notes", result.notes)}
-    out.update(_report(state, "motion", "clips: " + ", ".join(f"{n} x {m}" for m, n in modes.items()), *result.notes))
+    layouts = ", ".join(f"shot {c.shot_index + 1}: {c.layout} x{c.peak_upscale:.2f}" for c in result.clips if c.layout)
+    out = {"storyboard": result.storyboard, "keyframes": result.keyframes, "clips": result.clips,
+           "notes": _more(state, "notes", result.notes)}
+    out.update(_report(state, "motion", "clips: " + ", ".join(f"{n} x {m}" for m, n in modes.items()),
+                       f"layout and peak enlargement: {layouts}" if layouts else "", *result.notes))
     return out
 
 
@@ -181,12 +198,14 @@ def node_compose(state: VideoState) -> dict:
     frames = video_compose.shot_frames([s.seconds for s in board.shots], brief.fps)
     clip_of = {c.shot_index: c for c in state["clips"]}
     result = video_compose.compose(
-        clips=[video_compose.ClipPart(Path(clip_of[s.index].path), n) for s, n in zip(board.shots, frames)],
-        overlays=[video_compose.OverlayPart(Path(o.path), o.start_s, o.end_s) for o in state.get("overlay_items", [])],
+        clips=[video_compose.ClipPart(Path(clip_of[s.index].path), n, grade=clip_of[s.index].mode != "card")
+               for s, n in zip(board.shots, frames)],
+        overlays=[video_compose.OverlayPart(Path(o.path), o.start_s, o.end_s, o.fade_s, o.slide_px)
+                  for o in state.get("overlay_items", [])],
         voices=[video_compose.VoicePart(Path(t.path), t.start_s) for t in state["line_timings"] if t.mode == "speech"],
         out_path=out_dir / "video.mp4", thumbnail_path=out_dir / "thumbnail.jpg", width=brief.width,
         height=brief.height, fps=brief.fps, draft=state.get("draft", False), work_dir=out_dir / "work",
-        hook_seconds=board.shots[0].seconds,
+        hook_seconds=board.shots[0].seconds, grade=brief.grade,
         music_path=Path(state["music_track"]) if state.get("music_track") else None)
     info = ffmpeg.probe(result.video_path)
     loud = result.loudness
@@ -200,6 +219,52 @@ def node_compose(state: VideoState) -> dict:
                        f"{info.duration_s:.2f} s, {info.size_bytes / 1e6:.1f} MB",
                        f"loudness {loud.integrated_lufs:.1f} LUFS" if loud else "", *result.notes))
     return out
+
+
+@_instrumented("gate")
+def node_gate(state: VideoState) -> dict:
+    """Measure the finished video and the plan (agents/video/gate.py). The gate never fails
+    the run by failing itself: a crash in it is recorded as a warning."""
+    out_dir = _out_dir(state)
+    try:
+        inputs = gate_agent.GateInputs(
+            video_path=Path(state["video_path"]),
+            thumbnail_path=Path(state["thumbnail_path"]) if state.get("thumbnail_path") else None,
+            brief=state["brief"], script=state["script"], storyboard=state["storyboard"], clips=state.get("clips") or [],
+            line_timings=state.get("line_timings") or [], overlay_items=state.get("overlay_items") or [],
+            music_info=state.get("music_info"),
+            guard=gate_agent.build_guard(state["property_input"], state["property_knowledge"], state["brief"]))
+        evaluation, measured = gate_agent.evaluate(inputs)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("The quality gate could not run")
+        measured = state.get("measurements")
+        reason = f"the gate could not run ({type(exc).__name__}: {str(exc)[:160]})"
+        evaluation = VideoEvaluationResult(
+            items=[GateCheck(name="gate", status="warn", detail=reason)], defects=[f"[WARN] gate: {reason}"],
+            checks={"gate": f"warn: {reason}"}, gate_result=VideoGate.WARN)
+    _write_qa(out_dir, state, evaluation, measured)
+    out = {"evaluation": evaluation, "failed_shots": evaluation.failed_shots}
+    if measured is not None:
+        out["measurements"] = measured
+    out.update(_report(state, "gate", f"{evaluation.gate_result.value.upper()}, score {evaluation.quality_score:.0f}/100",
+                       *evaluation.defects))
+    return out
+
+
+def _write_qa(out_dir: Path, state: VideoState, evaluation: VideoEvaluationResult,
+              measured: Optional[VideoMeasurements]) -> None:
+    """qa.json: the verdict, every check with what was measured, and each shot's photograph."""
+    clip_of = {c.shot_index: c for c in state.get("clips") or []}
+    shots = [{"shot": s.index + 1, "kind": s.kind, "photo": Path(s.source_path).name if s.source_path else "",
+              "seconds": s.seconds, "layout": clip_of[s.index].layout if s.index in clip_of else "",
+              "peak_upscale": clip_of[s.index].peak_upscale if s.index in clip_of else 0.0,
+              "tags": s.tags, "overlay_text": s.overlay_text} for s in state["storyboard"].shots]
+    payload = {"video_id": state["video_id"], "gate_result": evaluation.gate_result.value,
+               "score": evaluation.quality_score, "judge": evaluation.judge,
+               "defects": evaluation.defects, "not_measured": evaluation.feedback,
+               "checks": [c.model_dump() for c in evaluation.items],
+               "measurements": measured.model_dump() if measured is not None else None, "shots": shots}
+    (out_dir / "qa.json").write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -224,7 +289,7 @@ def build_plan_graph():
 
 def build_produce_graph():
     return _chain([("n_voice_music", node_voice_music), ("n_motion", node_motion), ("n_overlays", node_overlays),
-                   ("n_compose", node_compose)])
+                   ("n_compose", node_compose), ("n_gate", node_gate)])
 
 
 _PLAN_GRAPH = None
@@ -255,26 +320,26 @@ def auto_approve(storyboard: Storyboard) -> Storyboard:
 
 
 def run_plan_workflow(property_dir: Path, overrides: Optional[dict] = None, *, offline: bool = False,
-                      draft: bool = False,
+                      draft: bool = False, refresh_ledger: bool = False,
                       approve: Callable[[Storyboard], Storyboard] = auto_approve) -> VideoGenerationRecord:
     """Plans the video for the property at `property_dir` (e.g.
     data/properties/ANAMIKA-HIGH-POINT): brief, ledger, asset audit, script
     and storyboard. `overrides` are options laid over video_input.json.
     `approve` gets the storyboard and returns the one to use. Saves and
     returns a record with status "planned" (or "failed", with the reason)."""
-    return _run(property_dir, overrides, offline, draft, approve, produce=False)
+    return _run(property_dir, overrides, offline, draft, approve, produce=False, refresh_ledger=refresh_ledger)
 
 
 def run_video_workflow(property_dir: Path, overrides: Optional[dict] = None, *, offline: bool = False,
-                       draft: bool = False,
+                       draft: bool = False, refresh_ledger: bool = False,
                        approve: Callable[[Storyboard], Storyboard] = auto_approve) -> VideoGenerationRecord:
     """Plan, approve, then produce: voice, motion, overlays and compose.
     Saves and returns a record with status "rendered" (or "failed")."""
-    return _run(property_dir, overrides, offline, draft, approve, produce=True)
+    return _run(property_dir, overrides, offline, draft, approve, produce=True, refresh_ledger=refresh_ledger)
 
 
 def _run(property_dir: Path, overrides: Optional[dict], offline: bool, draft: bool,
-         approve: Callable[[Storyboard], Storyboard], produce: bool) -> VideoGenerationRecord:
+         approve: Callable[[Storyboard], Storyboard], produce: bool, refresh_ledger: bool = False) -> VideoGenerationRecord:
     repository.init_db()
     property_dir = Path(property_dir)
     video_id = f"vid_{uuid.uuid4().hex[:10]}"
@@ -283,12 +348,13 @@ def _run(property_dir: Path, overrides: Optional[dict], offline: bool, draft: bo
 
     initial: VideoState = {"video_id": video_id, "property_dir": str(property_dir),
                            "video_overrides": dict(overrides or {}), "offline": offline, "draft": draft,
-                           "agent_reports": {}}
+                           "refresh_ledger": refresh_ledger, "agent_reports": {}}
     step_log: dict[str, AgentStepResult] = {}
     token = _step_log_var.set(step_log)
+    blocked: list[str] = []
     try:
         try:
-            with tracing.trace_generation(video_id, record.property_id):
+            with policy.video_run_policy() as call_policy, tracing.trace_generation(video_id, record.property_id):
                 state = get_plan_graph().invoke(initial, {"recursion_limit": 25})
                 board = approve(state["storyboard"])
                 if board is not state["storyboard"]:
@@ -301,7 +367,11 @@ def _run(property_dir: Path, overrides: Optional[dict], offline: bool, draft: bo
                 if produce:
                     state = get_produce_graph().invoke(state, {"recursion_limit": 25})
                     _fill_produce(record, state)
-            record.status = "rendered" if produce else "planned"
+                blocked = list(call_policy.blocked) if call_policy else []
+            record.status = _status(record) if produce else "planned"
+            if record.status == "failed":
+                record.error = "The quality gate failed: " + "; ".join(
+                    i.detail for i in record.evaluation.items if i.status == "fail")[:400]
         except Exception as exc:  # noqa: BLE001
             logger.exception("Video generation failed for %s", property_dir.name)
             record.status = "failed"
@@ -309,10 +379,17 @@ def _run(property_dir: Path, overrides: Optional[dict], offline: bool, draft: bo
     finally:
         _step_log_var.reset(token)
 
+    record.notes = list(dict.fromkeys([*record.notes, *(f"Blocked by the run's policy: {b}." for b in blocked)]))
     record.workflow_evaluation = WorkflowEvaluation(
         steps=[step_log[name] for name in _STEP_NAMES if name in step_log])
     repository.save_generation(record)
     return record
+
+
+def _status(record: VideoGenerationRecord) -> str:
+    """The gate's verdict as the record's status."""
+    gate = record.evaluation.gate_result if record.evaluation else VideoGate.WARN
+    return {VideoGate.PASS: "passed", VideoGate.WARN: "warned", VideoGate.FAIL: "failed"}[gate]
 
 
 def _fill_plan(record: VideoGenerationRecord, state: dict) -> None:
@@ -328,7 +405,8 @@ def _fill_plan(record: VideoGenerationRecord, state: dict) -> None:
     record.brief, record.script, record.storyboard = brief, script, board
     record.generated_shots = board.generated_shots
     record.agent_reports = dict(state.get("agent_reports") or {})
-    record.notes = list(dict.fromkeys([*(state.get("asset_notes") or []), *script.notes, *board.notes]))
+    record.notes = list(dict.fromkeys([*(state.get("notes") or []), *(state.get("asset_notes") or []),
+                                       *script.notes, *board.notes]))
 
 
 def _fill_produce(record: VideoGenerationRecord, state: dict) -> None:
@@ -342,9 +420,12 @@ def _fill_produce(record: VideoGenerationRecord, state: dict) -> None:
     record.captions_path = state.get("captions_path")
     record.line_timings, record.clips = state.get("line_timings") or [], clips
     record.voice, record.music = state.get("voice_name", ""), state.get("music_track") or ""
+    record.music_info = state.get("music_info")
     record.providers_used = dict(Counter(c.provider for c in clips if c.provider))
-    record.cost_usd = round(sum(c.cost_usd for c in clips), 4)
+    record.cost_usd = round(sum(c.cost_usd for c in clips) + (record.music_info.cost_usd if record.music_info else 0)
+                            + sum(t.cost_usd for t in record.line_timings), 4)
     record.measurements = state.get("measurements")
+    record.evaluation = state.get("evaluation")
     record.actual_duration_s = record.measurements.duration_s if record.measurements else 0.0
     record.defects = list(dict.fromkeys(state.get("defects") or []))
     record.agent_reports = dict(state.get("agent_reports") or {})

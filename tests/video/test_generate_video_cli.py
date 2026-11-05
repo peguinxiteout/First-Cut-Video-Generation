@@ -83,10 +83,13 @@ def test_offline_blanks_every_key_in_this_process_and_asks_no_model(cli, propert
     monkeypatch.setattr(settings, "gemini_api_key", "live-looking-key", raising=False)
     monkeypatch.setattr(settings, "openrouter_api_key", "live-looking-key", raising=False)
     monkeypatch.setattr(settings, "cloudflare_api_token", "live-looking-token", raising=False)
+    monkeypatch.setattr(settings, "google_cloud_tts_api_key", "live-looking-key", raising=False)
+    monkeypatch.setattr(settings, "beatoven_api_key", "live-looking-key", raising=False)
 
     cli("--property-id", property_id, "--plan-only", "--offline")
 
     assert (settings.gemini_api_key, settings.openrouter_api_key, settings.cloudflare_api_token) == ("", "", "")
+    assert (settings.google_cloud_tts_api_key, settings.beatoven_api_key) == ("", "")
     assert settings.video_gen_provider == "kenburns"
     assert settings.image_gen_provider == "mock" and settings.tools_enabled is False
     assert settings.mlflow_enabled is False
@@ -117,16 +120,22 @@ def test_video_input_json_is_used_for_what_the_command_line_leaves_out(cli, prop
     assert (record.duration_s, record.aspect) == (30, "16:9") and "Rooftop deck." in out
 
 
+@pytest.mark.slow
 def test_without_plan_only_the_video_is_rendered_and_the_result_is_printed(cli, property_id, refuse_models):
     out = cli("--property-id", property_id, "--duration", "10", "--offline", "--draft")
 
-    assert "Status:   rendered" in out and out.count("[OK  ]") == 9
-    for heading in ("--- Script ---", "--- Storyboard ---", "--- Result ---", "--- Defects ---"):
+    assert ("Status:   passed" in out or "Status:   warned" in out) and out.count("[OK  ]") == 10
+    for heading in ("--- Script ---", "--- Storyboard ---", "--- Result ---", "--- Defects ---", "--- Quality gate: "):
         assert heading in out
     assert "h264/aac, 540x960, 12 fps" in out and "LUFS" in out and "voice:     mock/mock" in out
     assert "total wall time" in out and "  - none" in out
+    assert "--- Layout ---" in out and "peak enlargement" in out and "  music:     none" in out
+    assert "  cost:      $0.00" in out and "  hook:      " in out
     record = repository.list_generations(property_id)[0]
-    assert record.status == "rendered" and Path(record.video_path).exists() and record.duration_s == 10
+    assert record.status in ("passed", "warned") and Path(record.video_path).exists() and record.duration_s == 10
+    assert (Path(record.output_dir) / "qa.json").exists() and "details:" in out
+    assert all(c.layout in ("fill", "fit") and c.peak_upscale > 0 for c in record.clips if c.mode != "card")
+    assert record.music_info.provider == "none"
     assert Path(record.thumbnail_path).exists() and Path(record.captions_path).exists()
 
 
@@ -160,3 +169,19 @@ def test_a_failed_plan_prints_the_reason_and_exits_non_zero(cli, property_id, re
         cli("--property-id", property_id, "--plan-only", "--offline")
     assert caught.value.code == 1
     assert "Error: No images found" in capsys.readouterr().out
+
+
+def test_the_music_line_says_what_was_used_what_it_cost_and_why_not_when_there_is_none(cli):
+    from src.data.video_schemas import MusicInfo
+
+    line = cli.module.music_line
+    assert line(None) == "none"
+    assert line(MusicInfo(provider="none", notes=["lyria: no key", "library: no track"])) == "none (lyria: no key; library: no track)"
+    assert line(MusicInfo(provider="lyria", model_id="lyria-3-clip-preview", cost_usd=0.04)) == "lyria lyria-3-clip-preview ($0.04)"
+    assert line(MusicInfo(provider="lyria", model_id="m", from_cache=True)) == "lyria m (cached, $0.00)"
+    assert line(MusicInfo(provider="library", title="morning", licence="CC0")) == "library morning ($0.00); licence: CC0"
+
+
+def test_the_property_folder_is_found_whatever_the_case_of_the_id(cli, property_id, refuse_models):
+    out = cli("--property-id", property_id.swapcase(), "--plan-only", "--offline")
+    assert "Status:   planned" in out and "--- Script ---" in out

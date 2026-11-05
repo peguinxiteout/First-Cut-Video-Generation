@@ -52,10 +52,10 @@ def test_other_lengths_add_up_too(tmp_path, seconds):
     assert _problems(board, plan) == []
 
 
-def test_the_hook_is_the_best_exterior_and_gets_at_least_three_seconds(plan, board):
+def test_the_hook_is_the_best_exterior_and_gets_at_least_two_and_a_half_seconds(plan, board):
     hook = board.shots[0]
     assert hook.subject == "exterior" and hook.source_path.endswith("exterior_facade.jpg")
-    assert hook.seconds >= 3.0 and hook.camera == "push_in"
+    assert hook.seconds >= 2.5 and hook.camera == "push_in"
     assert hook.overlay_text == plan.script.on_screen
 
 

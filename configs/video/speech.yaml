@@ -1,17 +1,43 @@
 # Narration. The chain is tried in order and the first provider that can
 # speak wins; "silent" never fails, so a run always has a track to time to.
 #
+#   cloud_tts Google Cloud Text-to-Speech, Chirp 3: HD, an en-IN voice (needs
+#             GOOGLE_CLOUD_TTS_API_KEY)
 #   gemini    Gemini TTS over REST (needs GEMINI_API_KEY)
 #   offline   a voice on this machine: Windows SAPI, or espeak-ng if it is on PATH
 #   silent    a silent track as long as the line takes to say (captions carry it)
 #
 # Model, default voice and the provider choice come from Settings
 # (GEMINI_TTS_MODEL, GEMINI_TTS_VOICE, SPEECH_PROVIDER).
-chain: [gemini, offline, silent]
+chain: [cloud_tts, gemini, offline, silent]
 
 # A natural pace for a promotional read. Sets how long a silent track is, and
 # is the figure the script's word budget is built on.
 words_per_second: 2.1
+
+cloud_tts:
+  url: https://texttospeech.googleapis.com/v1/text:synthesize
+  language: en-IN
+  model: Chirp3-HD
+  default_voice: Sulafat          # a persona, or a full name like en-IN-Chirp3-HD-Sulafat
+  speaking_rate: 1.0              # 0.25 to 2.0
+  sample_rate: 24000
+  # Google's list price for Chirp 3: HD, per million characters (from third-party rate cards,
+  # 4 Nov 2026; the official page did not load). The free monthly allowance is not netted off,
+  # so the figure on a record is an upper bound.
+  usd_per_million_chars: 30.0
+  # IPA spellings, sent to the service as custom pronunciations, which it follows exactly.
+  # Whole words, case as written; a word here is NOT respelled from `pronunciations` below.
+  # A property's own video_input.json respelling wins over these.
+  # OFF (5 Nov 2026): for en-IN the service answered 400 INVALID_ARGUMENT "The following custom
+  # pronunciation phrases are invalid: Anamika. Please ensure the phrases are well-structured
+  # and that the phonemes are valid." It is not known whether en-IN does not take them at all
+  # or these IPA strings are outside the set it accepts. Until that is settled every name is
+  # respelled in plain text below, for this voice too. Entries to try again:
+  #   Anamika: "ənɑːmɪkɑː"
+  #   Ahmedabad: "ˈɑːməd̪ɑːˌbɑːd̪"
+  #   Velachery: "ˈʋeːləˌtʃeːɾi"
+  phonemes: {}
 
 gemini:
   url: https://generativelanguage.googleapis.com/v1beta/interactions
@@ -19,10 +45,30 @@ gemini:
   style: "brisk, confident real estate ad narrator, fast pace, upbeat, no long pauses"
 
 # VideoInput.voice picks one of these. Each names what to ask each provider
-# for; null leaves that provider on its own default (for gemini, GEMINI_TTS_VOICE).
+# for; null leaves that provider on its own default (for cloud_tts, its default_voice; for
+# gemini, GEMINI_TTS_VOICE). Chirp 3 persona notes are Google's: Sulafat is "warm",
+# Achird "friendly". The gemini entry of `male` is null until a Gemini male voice is chosen
+# and heard, so a video that falls back to Gemini speaks in its default voice.
 default_voice: default
 voices:
   default:
-    label: "Professional, Indian English"
+    label: "Professional, Indian English (warm, female)"
+    cloud_tts: en-IN-Chirp3-HD-Sulafat
     gemini: null
     offline: female
+  male:
+    label: "Professional, Indian English (friendly, male)"
+    cloud_tts: en-IN-Chirp3-HD-Achird
+    gemini: null
+    offline: male
+
+# What the voice is given in place of a word, applied to the spoken text only:
+# captions, titles and the closing card keep the real spelling. Whole words,
+# any case, longest match first. A voice with a phonetic spelling of its own for a word
+# (cloud_tts.phonemes) is given the word as written and these are left out for it. A property's video_input.json may add its own
+# "pronunciations" (they win over these).
+pronunciations:
+  Anamika: Ah-nah-mee-kah
+  Ahmedabad: Ahmedaabaad
+  Velachery: Vay-luh-chay-ree
+  S.G. Highway: Ess Jee Highway

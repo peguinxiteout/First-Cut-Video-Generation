@@ -163,20 +163,24 @@ class TestVoices:
 
 
 class TestBuilding:
-    def _settings(self, tmp_path, provider="auto", key=""):
-        return SimpleNamespace(speech_provider=provider, gemini_api_key=key, gemini_tts_model="gemini-test-tts",
-                               gemini_tts_voice="voice-a", data_dir_resolved=tmp_path / "data")
+    def _settings(self, tmp_path, provider="auto", key="", tts_key=""):
+        return SimpleNamespace(speech_provider=provider, gemini_api_key=key, google_cloud_tts_api_key=tts_key,
+                               gemini_tts_model="gemini-test-tts", gemini_tts_voice="voice-a",
+                               data_dir_resolved=tmp_path / "data")
 
-    def test_auto_is_gemini_then_offline_then_silent_from_the_yaml(self, tmp_path):
+    def test_auto_is_cloud_tts_then_gemini_then_offline_then_silent_from_the_yaml(self, tmp_path):
         service = get_speech_service(self._settings(tmp_path))
-        assert [p.name for p in service.providers] == ["gemini", "offline", "silent"]
-        gemini = service.providers[0]
+        assert [p.name for p in service.providers] == ["cloud_tts", "gemini", "offline", "silent"]
+        assert service.providers[0].is_available() is False
+        gemini = service.providers[1]
         assert gemini.is_available() is False and gemini.model_id == "gemini-test-tts"
         assert service.cache_dir == tmp_path / "data" / "speech_cache"
         assert service.default_voice == "default" and "default" in service.voices
 
-    def test_a_key_makes_gemini_available(self, tmp_path):
-        assert get_speech_service(self._settings(tmp_path, key="k")).providers[0].is_available()
+    def test_a_key_makes_each_voice_available(self, tmp_path):
+        service = get_speech_service(self._settings(tmp_path, key="k", tts_key="t"))
+        assert [p.is_available() for p in service.providers[:2]] == [True, True]
+        assert service.providers[0].model_id == "en-IN-Chirp3-HD"
 
     def test_a_named_provider_is_followed_by_silence(self, tmp_path):
         service = get_speech_service(self._settings(tmp_path, provider="offline"))
@@ -195,7 +199,7 @@ class TestBuilding:
         monkeypatch.setattr(speech, "OfflineSpeechProvider", _no_engine)
         service = get_speech_service(self._settings(tmp_path))
         audio = service.synthesize(LINE, "", tmp_path / "a.wav")
-        assert audio.mode == "silent" and len(audio.notes) == 2
+        assert audio.mode == "silent" and len(audio.notes) == 3
 
 
 def test_speech_errors_are_platform_errors_and_only_transport_is_retryable():

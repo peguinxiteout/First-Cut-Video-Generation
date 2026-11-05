@@ -5,7 +5,14 @@ The rule planner. The shots are the script's lines laid on a timeline:
     * the hook gets the best exterior, and at least `min_hook_s`
     * every other shot gets the best unused photograph of what its line talks
       about (the line's topic against the picture's topic), else the best
-      unused photograph there is
+      unused photograph there is. When the pictures carry tags (a vision model
+      read them), a line that needs something shown gets a picture tagged with
+      it (the one the script set aside, else another), and never an unrelated one;
+      a general line gets a picture tagged exterior if one is left
+    * a chip is printed only over a picture tagged with what the chip names
+    * a line that spans two shots gets two DIFFERENT photographs (both tagged with what it
+      needs, when it needs something); when no other photograph will do, the two shots become
+      one longer shot. The same photograph is never in two shots one after the other
     * pictures that look alike (image_plan) are not shown twice; when there
       are fewer pictures than shots, a picture is shown again with a different
       crop and the opposite move, and the shot is marked `reuse`
@@ -24,6 +31,7 @@ from pathlib import Path
 from typing import Optional
 
 from src.agents.brochure import focal
+from src.agents.video import photo_tags
 from src.agents.brochure.image_plan import Allocator, Plan
 from src.core.config import load_yaml_config
 from src.core.exceptions import WorkflowError
@@ -84,6 +92,20 @@ def assign_lines(script: VideoScript, seconds: list[float], words_per_second: fl
     return out
 
 
+def hook_asset(usable: list[RankedAsset], hero_name: str, notes: list[str]) -> Optional[RankedAsset]:
+    """The picture the video opens on when pictures are tagged: the hero the person named, else the
+    plainest picture tagged exterior (the one with the fewest amenity tags: a picture that also
+    shows a pool is kept for the line about the pool), the better picture winning a tie
+    (`usable` is best first); None when there is no such picture (the planner then falls back
+    to the picture's topic)."""
+    hero = resolve_hero(hero_name, usable, notes)
+    if hero is not None:
+        return hero
+    amenities = set(photo_tags.names())
+    exteriors = [a for a in usable if "exterior" in a.tags]
+    return min(exteriors, key=lambda a: sum(t in amenities for t in a.tags), default=None)
+
+
 def resolve_hero(name: str, assets: list[RankedAsset], notes: list[str]) -> Optional[RankedAsset]:
     """The picture video_input.json asks to open on (by image id or file name,
     with or without the extension), if it exists and can carry a shot; else
@@ -100,6 +122,41 @@ def resolve_hero(name: str, assets: list[RankedAsset], notes: list[str]) -> Opti
     else:
         return found
     return None
+
+
+def one_tagged_line_per_shot(script: VideoScript, lines_by_shot: list[list[int]]) -> list[list[int]]:
+    """A shot shows one picture, so it can carry only one line that needs a picture shown.
+    When the timing put two such lines in one shot, the later one moves to the front of the
+    next shot (the order of the lines is kept). The last photograph shot keeps what it has."""
+    shots = [list(ids) for ids in lines_by_shot]
+    for k in range(len(shots) - 1):
+        needing = [i for i in shots[k] if script.lines[i].tags]
+        if len(needing) > 1:
+            at = shots[k].index(needing[1])
+            moved, shots[k] = shots[k][at:], shots[k][:at]
+            shots[k + 1] = moved + [i for i in shots[k + 1] if i not in moved]
+    return shots
+
+
+def _by_tags(lines: list, fresh: list, candidates: list[str], by_id: dict) -> Optional[str]:
+    """The picture for a shot when pictures are tagged (`candidates` are the unused pictures,
+    best first). `fresh` are the lines of the shot that begin here and need something shown:
+    they get the picture the script set aside, else one tagged with what they need. A line
+    that carries on from an earlier shot takes a picture of the same kind. If no candidate
+    shows what a line needs the answer is None (never an unrelated picture: the planner then
+    shows a matching picture again). Lines that need nothing take a picture tagged exterior
+    if there is one, else the best."""
+    for line in fresh:
+        if line.photo and line.photo in candidates:
+            return line.photo
+    carrying = [line for line in lines if line.tags and line not in fresh]
+    for line in [*fresh, *carrying]:
+        hit = next((c for c in candidates if set(line.tags) & set(by_id[c].tags)), None)
+        if hit:
+            return hit
+    if fresh or carrying:
+        return None
+    return next((c for c in candidates if "exterior" in by_id[c].tags), candidates[0] if candidates else None)
 
 
 def _shift(focal_point: str, wide: bool) -> str:
@@ -122,6 +179,7 @@ def run(brief: VideoBrief, script: VideoScript, assets: list[RankedAsset],
     end_card_s, notes = pacing["end_card_s"], []
     usable = [a for a in assets if a.usable]                      # best first
     by_id = {a.image_id: a for a in usable}
+    tagged = any(a.tags for a in usable)                          # read by a vision model
     desired = brief.n_shots - 1
     allowance = pacing["max_reuse_per_photo"]
     count = 1 if not usable else min(desired, len(usable) + min(len(usable) * allowance, len(usable) - 1))
@@ -133,38 +191,75 @@ def run(brief: VideoBrief, script: VideoScript, assets: list[RankedAsset],
 
     seconds = photo_seconds(brief.duration_s, count, end_card_s, pacing["min_hook_s"])
     lines_by_shot = assign_lines(script, seconds, words_per_second)
+    if tagged:
+        lines_by_shot = one_tagged_line_per_shot(script, lines_by_shot)
     out_aspect = brief.width / brief.height
     allocator = Allocator(plan, by_id, analyses)
     hero = resolve_hero(brief.hero_image, assets, notes)
     first_camera, uses, shown_chips = {}, {}, set()
+    chip_why: dict[str, str] = {}                                  # chip -> why a picture did not carry it
     shots: list[Shot] = []
     cycle_at, matched, asked = 0, 0, 0
+    owned: set[int] = set()                                        # lines already shown in an earlier shot
 
     for k in range(count):
+        n = len(shots) + 1                                         # this shot's place in the finished video
         line_ids = lines_by_shot[k]
         lines = [script.lines[i] for i in line_ids]
+        fresh = [script.lines[i] for i in line_ids if i not in owned and script.lines[i].tags]
+        carry = [script.lines[i] for i in line_ids if i in owned and script.lines[i].tags]
+        continuing = bool(shots) and shots[-1].kind == "real" and all(i in owned for i in line_ids)
+        owned.update(line_ids)
         wanted = "exterior" if k == 0 else next((l.topic for l in lines if l.topic), "")
         asset: Optional[RankedAsset] = None
         reuse = False
+        candidates: list[str] = []
         if usable:
             if k == 0 and hero:
                 choice = hero.image_id
+                allocator.note(choice, 0)
+            elif k == 0 and tagged and hook_asset(usable, "", []):
+                choice = hook_asset(usable, "", []).image_id
                 allocator.note(choice, 0)
             elif k == 0:
                 choice = allocator.take(0, ("exterior",))
             else:
                 candidates = allocator.candidates(k)
-                choice = next((c for c in candidates if wanted and by_id[c].topic == wanted),
-                              candidates[0] if candidates else None)
+                if tagged:
+                    choice = _by_tags(lines, fresh, candidates, by_id)
+                else:
+                    choice = next((c for c in candidates if wanted and by_id[c].topic == wanted),
+                                  candidates[0] if candidates else None)
                 if choice:
                     allocator.note(choice, k)
             asset = by_id.get(choice) if choice else None
-            if asset is None:                                      # every picture is used: show one again
+            if asset is None and not continuing:                   # every picture is used: show one again
                 previous = shots[-1].image_id if shots else ""
-                again = [a for a in usable if 1 <= uses.get(a.image_id, 0) <= allowance and a.image_id != previous]
-                again.sort(key=lambda a: a.topic != wanted)
+                needing = fresh + carry if tagged else []
+                again = [a for a in usable if 1 <= uses.get(a.image_id, 0) <= allowance
+                         and a.image_id != previous]                # never the picture of the shot before
+                again.sort(key=lambda a: (not any(set(l.tags) & set(a.tags) for l in lines), a.topic != wanted))
+                if needing:                                        # never an unrelated picture for a line that needs one
+                    again = [a for a in again if any(set(l.tags) & set(a.tags) for l in needing)]
                 asset, reuse = (again[0] if again else None), True
-        if wanted and wanted != "exterior" and asset is not None:
+        if asset is None and continuing:
+            # No new photograph will do for the rest of a line already shown (a photograph is not shown
+            # again for it): one longer shot.
+            before = shots[-1]
+            before.seconds = round(before.seconds + seconds[k], 3)
+            before.line_ids = [*before.line_ids, *[i for i in line_ids if i not in before.line_ids]]
+            what = ", ".join(sorted({t for l in lines for t in l.tags})) or "the line"
+            notes.append(f"Shot {n} would have shown {before.source_path and Path(before.source_path).name or 'the same picture'} "
+                         f"again: no other photograph shows {what}, so it is joined to the shot before, which is longer.")
+            continue
+        needed = fresh
+        if asset is not None and asset.tags and needed:
+            asked += 1
+            matched += any(set(l.tags) & set(asset.tags) for l in needed)
+            if not any(set(l.tags) & set(asset.tags) for l in needed):
+                notes.append(f"Shot {n} plays '{needed[0].text}' over {asset.filename}, which shows "
+                             f"{', '.join(asset.tags) or 'nothing tagged'}, not {', '.join(needed[0].tags)}.")
+        elif wanted and wanted != "exterior" and asset is not None and not (tagged and asset.tags):
             asked += 1
             matched += asset.topic == wanted
 
@@ -173,12 +268,21 @@ def run(brief: VideoBrief, script: VideoScript, assets: list[RankedAsset],
             # A chip names something (a pool, a clubhouse); it is only printed over a
             # photograph known to show that, so it never labels the wrong picture.
             topic = script.lines[line_index].topic
-            if (line_index in line_ids and chip not in shown_chips and asset is not None and topic
-                    and asset.topic == topic):
+            if line_index not in line_ids or chip in shown_chips or asset is None:
+                continue
+            if asset.tags:                       # read by a vision model: the chip's tag must be among the picture's
+                if photo_tags.supports(chip, asset.tags):
+                    overlay.append(chip)
+                    shown_chips.add(chip)
+                else:
+                    named = sorted(photo_tags.needs(chip))
+                    chip_why.setdefault(chip, f"{asset.filename} (the picture under its line) shows "
+                                              f"{', '.join(asset.tags)}, not {', '.join(named) if named else 'what it names'}")
+            elif topic and asset.topic == topic:
                 overlay.append(chip)
                 shown_chips.add(chip)
         if asset is None:
-            shots.append(Shot(index=k, kind="card", seconds=seconds[k], camera="still", subject="card",
+            shots.append(Shot(index=len(shots), kind="card", seconds=seconds[k], camera="still", subject="card",
                               overlay_text=overlay or [brief.name], line_ids=line_ids))
             continue
 
@@ -199,18 +303,22 @@ def run(brief: VideoBrief, script: VideoScript, assets: list[RankedAsset],
 
         point = focal.focal_point(asset.path, asset.aspect, out_aspect, asset.topic)
         shots.append(Shot(
-            index=k, kind="real", image_id=asset.image_id, source_path=asset.path, subject=asset.topic,
+            index=len(shots), kind="real", image_id=asset.image_id, source_path=asset.path, subject=asset.topic,
+            caption=asset.caption, tags=list(asset.tags),
             camera=camera, motion_prompt=f"{pacing['motion_phrases'][camera]}. {pacing['motion_suffix']}",
             seconds=seconds[k], focal=_shift(point, wide) if reuse else point, overlay_text=overlay,
             line_ids=line_ids, reuse=reuse))
         if reuse:
-            notes.append(f"Shot {k + 1} shows {asset.filename} again, cropped from the other side.")
+            notes.append(f"Shot {n} shows {asset.filename} again, cropped from the other side.")
 
     for chip, line_index in zip(script.chips, script.chip_lines):
         if chip not in shown_chips:
             topic = script.lines[line_index].topic
-            notes.append(f"Chip '{chip}' not shown: no photograph under its line is known to show "
-                         f"{topic or 'what it names'}.")
+            if chip in chip_why:
+                notes.append(f"Chip '{chip}' dropped: {chip_why[chip]}.")
+            else:
+                notes.append(f"Chip '{chip}' not shown: no photograph under its line is known to show "
+                             f"{topic or 'what it names'}.")
     cta_ids = [i for i, line in enumerate(script.lines) if line.role == "cta"]
     shots.append(Shot(index=len(shots), kind="card", seconds=end_card_s, camera="still", subject="end card",
                       overlay_text=[t for t in [script.cta, *script.end_card] if t], line_ids=cta_ids))
@@ -245,6 +353,11 @@ def validate_plan(storyboard: Storyboard, brief: VideoBrief, assets: list[Ranked
         return ["the storyboard has no shots"]
     by_id = {a.image_id: a for a in assets}
     shown: set = set()
+    for before, shot in zip(shots, shots[1:]):
+        if shot.kind == "real" and before.kind == "real" and shot.image_id == before.image_id:
+            by_name = by_id.get(shot.image_id)
+            problems.append(f"Shots {before.index + 1} and {shot.index + 1} show the same photograph "
+                            f"({by_name.filename if by_name else shot.image_id}) one after the other")
     for shot in shots:
         label = f"Shot {shot.index + 1}"
         if shot.kind not in SHOT_KINDS:

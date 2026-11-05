@@ -14,6 +14,12 @@ Two renderers:
     fallback   Pillow, when Chromium cannot run: English only, one built-in
                font, "Rs" for the rupee sign. Plainer, never missing.
 
+A title, a chip, a line of the closing card and a caption are each drawn on
+their own transparent picture (`OverlaySpec.show` names the piece; the rest of
+the page is laid out around it but left invisible), so each can come in by
+itself and the pieces still sit exactly where one page would put them.
+`parts(spec)` lists the pieces in the order they appear.
+
 Both keep every piece of text inside the safe zone (configs/video/styles.yaml:
 the bands where a platform draws its own controls are left clear), and both
 report where the text landed so the zone can be checked, not assumed.
@@ -59,6 +65,11 @@ class OverlaySpec:
     legal: list[str] = field(default_factory=list)
     contact: list[str] = field(default_factory=list)
     has_logo: bool = False
+    show: str = ""                              # draw only this piece ("" = every piece)
+    text: str = ""                              # a caption's words
+    bottom_y: int = 0                           # a caption's lower edge, in frame pixels from the top
+    font_px: int = 50                           # a caption's type size at a 1080 px frame width
+    width_share: float = 0.88                   # of the safe zone's width, for a caption
 
     @property
     def unit(self) -> float:
@@ -71,6 +82,18 @@ class Rendered:
     renderer: str                               # browser | fallback
     notes: list[str] = field(default_factory=list)
     problems: list[str] = field(default_factory=list)       # text outside the safe zone
+    rects: list[list[dict]] = field(default_factory=list)   # per picture: where its text landed
+
+
+def parts(spec: OverlaySpec) -> list[str]:
+    """The pieces of a title, the closing card or a caption, in the order they come in."""
+    if spec.kind == "caption":
+        return ["caption"]
+    if spec.kind == "end_card":
+        return [*(["wordmark"] if not spec.has_logo and spec.heading else []), *(["cta"] if spec.cta else []),
+                *[f"legal{i}" for i in range(len(spec.legal))], *[f"contact{i}" for i in range(len(spec.contact))]]
+    return ["scrim", *(["heading"] if spec.heading else []), *[f"sub{i}" for i in range(len(spec.sub))],
+            *[f"chip{i}" for i in range(len(spec.chips))]]
 
 
 def safe_zone(aspect: str) -> dict:
@@ -105,7 +128,9 @@ def build_html(spec: OverlaySpec) -> str:
         heading_stack=design.stack(design.heading_font, serif=design.heading_font in _SERIF_HEADINGS),
         body_stack=design.stack(design.body_font), heading=spec.heading, sub=spec.sub, chips=spec.chips,
         cta=spec.cta, legal=spec.legal, contact=spec.contact, has_logo=spec.has_logo,
-        card_top=max(0, round(spec.height * (0.50 if spec.has_logo else 0.36)) - y0))
+        card_top=max(0, round(spec.height * (0.50 if spec.has_logo else 0.36)) - y0),
+        shown=lambda key: not spec.show or spec.show == key, text=spec.text, bottom_gap=spec.height - spec.bottom_y,
+        cap_px=round(spec.font_px * unit), cap_width=round((x1 - x0) * spec.width_share))
 
 
 def _render_browser(specs: list[OverlaySpec], paths: list[Path], work_dir: Path) -> list[list[dict]]:
@@ -154,6 +179,9 @@ def _render_fallback(spec: OverlaySpec, dest: Path) -> list[dict]:
     on_accent = _hex(spec.palette.get("accent_ink"), "#FFFFFF")
     rects: list[dict] = []
 
+    def shown(key: str) -> bool:
+        return not spec.show or spec.show == key
+
     def font(size: int):
         return ImageFont.load_default(size=round(size * u))
 
@@ -161,62 +189,78 @@ def _render_fallback(spec: OverlaySpec, dest: Path) -> list[dict]:
         left, top, right, bottom = draw.textbbox((0, 0), text, font=f)
         return right - left, bottom          # the height from the drawing point to the foot of the glyphs
 
-    def wrap(text: str, f) -> list[str]:
+    def wrap(text: str, f, width: int = safe_w) -> list[str]:
         lines, line = [], ""
         for word in text.split():
             trial = f"{line} {word}".strip()
-            if line and box(trial, f)[0] > safe_w:
+            if line and box(trial, f)[0] > width:
                 lines.append(line)
                 line = word
             else:
                 line = trial
         return lines + [line] if line else lines
 
-    def place(text: str, f, y: int, colour, centre: bool = False, pill=None, pad: tuple[int, int] = (0, 0)):
-        """Draw one piece of text with its top at y; returns the height used."""
+    def place(key: str, text: str, f, y: int, colour, centre: bool = False, pill=None, pad: tuple[int, int] = (0, 0)):
+        """Lay out one piece of text with its top at y, drawing it only when it
+        is the piece asked for; returns the height used."""
         w, h = box(text, f)
         x = (spec.width - (w + 2 * pad[0])) // 2 if centre else x0
-        if pill:
-            draw.rounded_rectangle((x, y, x + w + 2 * pad[0], y + h + 2 * pad[1]), radius=(h + 2 * pad[1]) // 2,
-                                   fill=pill)
-        draw.text((x + pad[0], y + pad[1]), text, font=f, fill=colour, anchor="la")
-        rects.append({"x": x, "y": y, "w": w + 2 * pad[0], "h": h + 2 * pad[1], "text": text})
+        if shown(key):
+            if pill:
+                draw.rounded_rectangle((x, y, x + w + 2 * pad[0], y + h + 2 * pad[1]),
+                                       radius=(h + 2 * pad[1]) // 2, fill=pill)
+            draw.text((x + pad[0], y + pad[1]), text, font=f, fill=colour, anchor="la")
+            rects.append({"x": x, "y": y, "w": w + 2 * pad[0], "h": h + 2 * pad[1], "text": text})
         return h + 2 * pad[1]
 
     gap = round(20 * u)
-    if spec.kind == "title":
-        for y in range(round(spec.height * 0.54), spec.height):                     # the scrim
-            alpha = round(168 * (y - spec.height * 0.54) / (spec.height * 0.46))
-            draw.line([(0, y), (spec.width, y)], fill=(0, 0, 0, alpha))
+    if spec.kind == "caption":
+        f = font(spec.font_px)
+        rows = wrap(_plain(spec.text), f, round(safe_w * spec.width_share))
+        heights = [box(row, f)[1] for row in rows]
+        pad_x, pad_y, lead = round(26 * u), round(14 * u), round(8 * u)
+        width = max(box(row, f)[0] for row in rows) + 2 * pad_x
+        height = sum(heights) + lead * (len(rows) - 1) + 2 * pad_y
+        left, top = (spec.width - width) // 2, spec.bottom_y - height
+        draw.rounded_rectangle((left, top, left + width, top + height), radius=round(18 * u), fill=(0, 0, 0, 148))
+        cursor = top + pad_y
+        for row, h in zip(rows, heights):
+            draw.text((spec.width // 2, cursor), row, font=f, fill=(255, 255, 255, 255), anchor="ma")
+            cursor += h + lead
+        rects.append({"x": left, "y": top, "w": width, "h": height, "text": spec.text})
+    elif spec.kind == "title":
+        if shown("scrim"):
+            for y in range(round(spec.height * 0.54), spec.height):                     # the scrim
+                alpha = round(168 * (y - spec.height * 0.54) / (spec.height * 0.46))
+                draw.line([(0, y), (spec.width, y)], fill=(0, 0, 0, alpha))
         cursor = y1
         heading_font = font(92)
         for line in reversed(wrap(_plain(spec.heading), heading_font)) if spec.heading else []:
             h = box(line, heading_font)[1]
             cursor -= h
-            place(line, heading_font, cursor, (255, 255, 255, 255))
+            place("heading", line, heading_font, cursor, (255, 255, 255, 255))
             cursor -= round(8 * u)
-        for text in reversed(spec.sub):
-            f = font(50)
-            h = box(_plain(text), f)[1] + 2 * round(8 * u)
+        for i in reversed(range(len(spec.sub))):
+            text, f = _plain(spec.sub[i]), font(50)
+            h = box(text, f)[1] + 2 * round(8 * u)
             cursor -= gap + h
-            place(_plain(text), f, cursor, on_accent, pill=accent, pad=(round(22 * u), round(8 * u)))
-        for text in reversed(spec.chips):
-            f = font(44)
-            h = box(_plain(text), f)[1] + 2 * round(12 * u)
+            place(f"sub{i}", text, f, cursor, on_accent, pill=accent, pad=(round(22 * u), round(8 * u)))
+        for i in reversed(range(len(spec.chips))):
+            text, f = _plain(spec.chips[i]), font(44)
+            h = box(text, f)[1] + 2 * round(12 * u)
             cursor -= gap + h
-            place(_plain(text), f, cursor, on_accent, pill=accent, pad=(round(30 * u), round(12 * u)))
+            place(f"chip{i}", text, f, cursor, on_accent, pill=accent, pad=(round(30 * u), round(12 * u)))
     else:
         cursor = round(spec.height * (0.50 if spec.has_logo else 0.36))
         if not spec.has_logo and spec.heading:
-            f = font(84)
-            cursor += place(_plain(spec.heading), f, cursor, (255, 255, 255, 255), centre=True) + gap
+            cursor += place("wordmark", _plain(spec.heading), font(84), cursor, (255, 255, 255, 255), centre=True) + gap
         if spec.cta:
-            cursor += place(_plain(spec.cta), font(62), cursor, on_accent, centre=True, pill=accent,
+            cursor += place("cta", _plain(spec.cta), font(62), cursor, on_accent, centre=True, pill=accent,
                             pad=(round(54 * u), round(20 * u))) + gap
-        for text in spec.legal:
-            cursor += place(_plain(text), font(36), cursor, (200, 200, 205, 255), centre=True) + gap // 2
-        for text in spec.contact:
-            cursor += place(_plain(text), font(46), cursor, (255, 255, 255, 255), centre=True) + gap // 2
+        for i, text in enumerate(spec.legal):
+            cursor += place(f"legal{i}", _plain(text), font(36), cursor, (200, 200, 205, 255), centre=True) + gap // 2
+        for i, text in enumerate(spec.contact):
+            cursor += place(f"contact{i}", _plain(text), font(46), cursor, (255, 255, 255, 255), centre=True) + gap // 2
     dest.parent.mkdir(parents=True, exist_ok=True)
     image.save(dest, "PNG")
     return rects
@@ -243,4 +287,4 @@ def render_overlays(specs: list[OverlaySpec], out_dir: Path, *, browser: bool = 
         renderer = "fallback"
         rects = [_render_fallback(spec, path) for spec, path in zip(specs, paths)]
     problems = [f"{spec.name}: {problem}" for spec, found in zip(specs, rects) for problem in check_rects(spec, found)]
-    return Rendered(paths, renderer, notes, problems)
+    return Rendered(paths, renderer, notes, problems, rects)

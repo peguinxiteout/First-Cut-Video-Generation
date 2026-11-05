@@ -213,14 +213,19 @@ def _node_script() -> VideoScript:
 def test_each_overlay_is_timed_to_its_shot_with_the_title_a_beat_late(tmp_path):
     result = overlays.run(_board(), _node_script(), _timings(), _brief(), _kit(), tmp_path, browser=False)
 
-    by_shot = {i.shot_index: i for i in result.items}
+    text = [i for i in result.items if i.kind != "caption"]
+    by_shot: dict[int, dict] = {}
+    for item in text:
+        by_shot.setdefault(item.shot_index, {})[item.key] = item
     assert set(by_shot) == {0, 1, 3}                                              # the shot with no text has no overlay
-    assert (by_shot[0].start_s, by_shot[0].end_s) == (0.35, 2.25)                 # 0.35 s after the cut, 0.15 s before the next
-    assert (by_shot[1].start_s, by_shot[1].end_s) == (2.6, 5.25)                  # 2.4 + 0.2 ... 5.4 - 0.15
-    assert (by_shot[3].start_s, by_shot[3].end_s) == (6.4, 8.4)                   # the card holds to the very end
-    assert by_shot[3].kind == "end_card" and by_shot[0].kind == "title"
+    hook, feature, card = by_shot[0], by_shot[1], by_shot[3]
+    assert (hook["heading"].start_s, hook["heading"].end_s) == (0.35, 2.25)       # 0.35 s after the cut, 0.15 s before the next
+    assert (feature["chip0"].start_s, feature["chip0"].end_s) == (2.6, 5.25)      # 2.4 + 0.2 ... 5.4 - 0.15
+    assert (card["wordmark"].start_s, card["wordmark"].end_s) == (6.4, 8.4)       # the card holds to the very end
+    assert [card[k].start_s for k in ("wordmark", "cta", "legal0")] == [6.4, 6.7, 7.0]     # its lines come in one after another
+    assert card["cta"].kind == "end_card" and hook["heading"].kind == "title"
     assert all(Path(i.path).exists() and i.renderer == "fallback" for i in result.items)
-    assert by_shot[3].texts == ["Book a site visit", "RERA: P52100012345"]
+    assert card["cta"].texts == ["Book a site visit"] and card["legal0"].texts == ["RERA: P52100012345"]
 
 
 def test_no_defect_when_the_text_fits_the_zone(tmp_path):
@@ -232,7 +237,7 @@ def test_a_zone_violation_becomes_a_defect(tmp_path, monkeypatch):
     real = video_overlay.check_rects
     monkeypatch.setattr(video_overlay, "check_rects", lambda spec, rects: ["'Aurelia Heights' is outside the safe zone"])
     result = overlays.run(_board(), _node_script(), _timings(), _brief(), _kit(), tmp_path, browser=False)
-    assert any(d.startswith("On-screen text outside the safe zone: overlay_00:") for d in result.defects)
+    assert any(d.startswith("On-screen text outside the safe zone: overlay_00_") for d in result.defects)
     monkeypatch.setattr(video_overlay, "check_rects", real)
 
 

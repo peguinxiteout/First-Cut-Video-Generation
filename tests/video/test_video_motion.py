@@ -8,10 +8,20 @@ from src.agents.video import motion
 from src.data.video_schemas import BrandKit, Shot, Storyboard, VideoBrief
 from src.models.video_gen import VideoGenerationTransportError, VideoService
 from src.models.video_gen.kenburns import KenBurnsProvider
-from src.rendering import ffmpeg
+from src.rendering import ffmpeg, transitions
+from src.rendering.video_compose import shot_frames
 from tests.video.fakes import ScriptedVideoProvider, make_photo, paid_spec
 
 BRAND = BrandKit(name="Aurelia", palette={"dark": "#101018", "accent": "#C0A060"})
+
+
+@pytest.fixture(autouse=True)
+def _photographs_fill(monkeypatch):
+    """These tests are about the keyframe and the model chain, which only a shot laid out as "fill"
+    goes through; the small test photographs would all be fitted. tests/video/test_video_layout.py
+    covers the choice."""
+    monkeypatch.setattr("src.agents.video.layout.settings", lambda: {
+        "fill_max_upscale": 99.0, "fit": {"dim": 0.6, "blur_px": 30, "centre_y": 0.47, "zoom": 0.06}})
 
 
 def _brief(w=270, h=480, fps=10) -> VideoBrief:
@@ -150,10 +160,12 @@ def test_every_shot_gets_a_clip_of_the_videos_size_and_a_record_of_how(tmp_path)
     assert [(c.shot_index, c.mode, c.provider, c.ok) for c in result.clips] == [
         (0, "kenburns", "kenburns", True), (1, "kenburns", "kenburns", True), (2, "card", "", True)]
     assert set(result.keyframes) == {0, 1}
-    for clip in result.clips:
+    # each clip is its shot plus what its crossfades borrow (0.3 s centred on each cut: 3 frames at 10 fps)
+    margins = transitions.margins(shot_frames([1.0, 1.0, 1.0], 10), 3)
+    for clip, (head, tail) in zip(result.clips, margins):
         info = ffmpeg.probe(clip.path)
         assert (info.width, info.height, info.vcodec) == (270, 480, "h264")
-        assert info.duration_s == pytest.approx(1.0, abs=0.15)
+        assert info.duration_s == pytest.approx((10 + head + tail) / 10, abs=0.15)
     assert all(not c.from_cache and c.cost_usd == 0 for c in result.clips)
 
 
@@ -210,10 +222,11 @@ def test_a_generated_shot_is_a_title_card_until_pictures_can_be_made(tmp_path):
 
 def test_a_small_photograph_is_noted_when_it_was_enlarged(tmp_path):
     board = _board(tmp_path)
-    small = make_photo(tmp_path / "photos" / "tiny.jpg", (500, 300), seed=30)
+    small = make_photo(tmp_path / "photos" / "tiny.jpg", (500, 470), seed=30)       # fills with a 1.02x enlargement
     board.shots[0].source_path = str(small)
     result = motion.run(board, _brief(270, 480), BRAND, tmp_path / "out", _service(tmp_path))
-    assert any(n.startswith("Shot 1: the photograph is small (169x300 after cropping)") for n in result.notes)
+    assert result.clips[0].layout == "fill"
+    assert any(n.startswith("Shot 1: the photograph is small (264x470 after cropping)") for n in result.notes)
 
 
 def test_a_chosen_model_that_cannot_run_is_said_once(tmp_path):

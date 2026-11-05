@@ -134,7 +134,7 @@ def test_online_a_failing_vision_model_falls_back_to_the_uploads(tmp_path, monke
     def fail(images):
         raise RuntimeError("vision is down")
 
-    monkeypatch.setattr("src.agents.brochure.vision.run", fail)
+    monkeypatch.setattr("src.agents.video.vision_cache.classify_batch", fail)
 
     _, ranked, _, notes = asset_audit.run(_images(make_video_property(tmp_path)), offline=False, photo_shots=4)
 
@@ -147,3 +147,20 @@ def test_the_blended_quality_is_written_back_for_the_planner(tmp_path, refuse_vi
     analyses, ranked, _, _ = asset_audit.run(images, offline=True, photo_shots=2)
     for asset in ranked:
         assert analyses[asset.image_id].quality == asset.quality
+
+
+def test_a_pictures_caption_adds_the_tags_its_words_name_without_a_second_model_call(tmp_path, monkeypatch):
+    from src.agents.video import vision_cache
+    from src.data.video_schemas import PhotoAnalysis
+
+    monkeypatch.setattr("src.core.config.settings.gemini_api_key", "k", raising=False)
+    caption = "Outdoor fitness equipment and children play structures set in a landscaped garden"
+
+    def reading(images, **kwargs):
+        return vision_cache.Reading(analyses={i.image_id: PhotoAnalysis(
+            image_id=i.image_id, category="amenity", quality=7, composition=7, hero_score=6, caption=caption,
+            tags=["amenity", "play area", "lawn"]) for i in images})
+
+    monkeypatch.setattr("src.agents.video.vision_cache.classify", reading)
+    _, ranked, _, _ = asset_audit.run(_images(make_video_property(tmp_path)), offline=False, photo_shots=4)
+    assert ranked and all(a.tags == ["amenity", "play area", "lawn", "gym"] and a.caption == caption for a in ranked)

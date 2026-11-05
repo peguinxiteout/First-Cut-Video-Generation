@@ -89,6 +89,8 @@ def _offline_image_generation(tmp_path, monkeypatch):
 
     monkeypatch.setattr(settings, "image_gen_provider", "mock", raising=False)
     monkeypatch.setattr(settings, "gemini_api_key", "", raising=False)
+    monkeypatch.setattr(settings, "google_cloud_tts_api_key", "", raising=False)
+    monkeypatch.setattr(settings, "beatoven_api_key", "", raising=False)
     monkeypatch.setattr(settings, "openrouter_api_key", "", raising=False)
     monkeypatch.setattr(settings, "hf_token", "", raising=False)
     monkeypatch.setattr(settings, "cloudflare_account_id", "", raising=False)

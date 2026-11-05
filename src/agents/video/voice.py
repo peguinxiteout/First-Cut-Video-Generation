@@ -2,7 +2,9 @@
 
 Every script line is spoken on its own (the speech service picks the voice:
 Gemini, a voice on this machine, or a silent track timed to the words), so
-each line's real length is known. The storyboard was planned from word counts;
+each line's real length is known. The whole script is voiced by ONE provider: if
+the first one fails partway, every line is spoken again by the next, and the
+notes say why. The storyboard was planned from word counts;
 here its shots are re-timed to those lengths.
 
 THE TIMELINE. Lines are laid end to end with a breath before the first (the
@@ -22,6 +24,11 @@ FITTING. The total stays at the length asked for (within 0.5 s):
 
 Speech is never sped up: a narrator rushed to fit is worse than a long video
 that says so.
+
+THE HOOK. The opening shot lasts at least `min_hook_s` (pacing.yaml). The hook line is
+short, so its shot would end as the next line begins; the shot is kept to the minimum
+and the time is taken from the shots after it (never below `min_other_shot_s`), so the
+total does not change.
 """
 from __future__ import annotations
 
@@ -31,9 +38,10 @@ from pathlib import Path
 from typing import Optional
 
 from src.core.config import load_yaml_config
-from src.data.video_schemas import LineTiming, Storyboard, VideoBrief, VideoScript
-from src.models.music import get_music_provider
+from src.data.video_schemas import LineTiming, MusicInfo, Storyboard, VideoBrief, VideoScript
+from src.models.music import MusicService, get_music_service
 from src.models.speech import SpeechService, get_speech_service
+from src.models.speech.pronunciation import merge, respell
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +64,7 @@ class VoiceResult:
     voice_tracks: list[str]
     voice_name: str
     music_track: Optional[str]
+    music_info: MusicInfo
     beat_times: list[float]
     total_s: float
     notes: list[str] = field(default_factory=list)
@@ -142,8 +151,32 @@ def retime(durations: list[float], storyboard: Storyboard, duration_s: float, co
             notes.append(f"The narration runs {over:.1f} s over the {duration_s:g} s asked for.")
 
     starts, card_start, total = _layout(durations, lead, gap, tail, pre)
-    seconds = _split(storyboard, starts, card_start, pre) + [total - card_start]
+    photo_seconds = _split(storyboard, starts, card_start, pre)
+    hook_note = _give_the_hook_its_minimum(photo_seconds, config.get("min_hook_s", 0.0), v.get("min_other_shot_s", 1.0))
+    if hook_note:
+        notes.append(hook_note)
+    seconds = photo_seconds + [total - card_start]
     return Timing(starts, [round(s, 3) for s in seconds], round(total, 3), notes, defects)
+
+
+def _give_the_hook_its_minimum(seconds: list[float], minimum: float, floor: float) -> str:
+    """Lengthen the first shot to `minimum` (in place), taking the time from the shots after it
+    in proportion to what each has above `floor`. The sum is unchanged. A note if it fell short
+    or if it was done."""
+    if len(seconds) < 2 or seconds[0] >= minimum - EPSILON:
+        return ""
+    need = minimum - seconds[0]
+    spare = [max(0.0, s - floor) for s in seconds[1:]]
+    take = min(need, sum(spare))
+    if take <= EPSILON:
+        return f"The hook shot is {seconds[0]:.1f} s, under its minimum of {minimum:g} s: the other shots have no time to give."
+    for i, extra in enumerate(spare, start=1):
+        seconds[i] -= take * extra / sum(spare)
+    seconds[0] += take
+    if need - take > EPSILON:
+        return (f"The hook shot is {seconds[0]:.1f} s, under its minimum of {minimum:g} s: the other shots "
+                "had no more time to give.")
+    return f"The hook shot was kept to {minimum:g} s; the time came from the shots after it."
 
 
 def _voice_name(audios: list) -> str:
@@ -156,26 +189,43 @@ def _voice_name(audios: list) -> str:
     return name + (f"; {silent} line(s) silent" if silent else "")
 
 
+def pronunciation_map(brief: VideoBrief) -> dict[str, str]:
+    """The words speech.yaml (and the property's own video_input.json) respells for the voice."""
+    return merge(load_yaml_config("video/speech.yaml").get("pronunciations"), brief.pronunciations)
+
+
+def spoken_text(text: str, brief: VideoBrief) -> str:
+    """What a voice with no phonetic spelling of its own is given for a line: the text, with the
+    words of the map respelled. The line itself, as printed, is untouched."""
+    return respell(text, pronunciation_map(brief))
+
+
 def run(script: VideoScript, storyboard: Storyboard, brief: VideoBrief, out_dir: Path,
-        service: Optional[SpeechService] = None) -> VoiceResult:
+        service: Optional[SpeechService] = None, music_service: Optional[MusicService] = None) -> VoiceResult:
     service = service or get_speech_service()
     audio_dir = out_dir / "audio"
-    audios = [service.synthesize(line.text, brief.voice, audio_dir / f"line_{i:02d}.wav")
-              for i, line in enumerate(script.lines)]
+    lines = [line.text for line in script.lines]
+    audios = service.synthesize_all(lines, brief.voice, [audio_dir / f"line_{i:02d}.wav" for i in range(len(lines))],
+                                    respellings=pronunciation_map(brief), local=list(brief.pronunciations))
+    spoken = [a.spoken or text for a, text in zip(audios, lines)]
     timing = retime([a.duration_s for a in audios], storyboard, brief.duration_s)
 
     board = storyboard.model_copy(deep=True)
     for shot, seconds in zip(board.shots, timing.shot_seconds):
         shot.seconds = seconds
     timings = [LineTiming(line_index=i, start_s=round(start, 3), end_s=round(start + a.duration_s, 3),
-                          path=str(a.path), provider=a.provider, voice=a.voice, mode=a.mode)
-               for i, (a, start) in enumerate(zip(audios, timing.starts))]
+                          path=str(a.path), provider=a.provider, voice=a.voice, mode=a.mode, spoken=text,
+                          cost_usd=0.0 if a.from_cache else a.cost_usd)
+               for i, (a, start, text) in enumerate(zip(audios, timing.starts, spoken))]
 
     notes = list(dict.fromkeys(n for a in audios for n in a.notes))
     notes += timing.notes
     if audios and all(a.mode == "silent" for a in audios):
         notes.append("No voice was available, so the video has no narration (the captions file has the lines).")
-    music = get_music_provider()
-    track = music.track(brief.music_mood, timing.total_s, audio_dir / "music.wav")
+    music = (music_service or get_music_service()).make(
+        brief.music_mood, brief.tone, brief.objective, brief.creative_direction, timing.total_s,
+        audio_dir / "music.wav")
+    notes += [f"Music ({music.info.provider}): {n}" for n in music.info.notes]
     return VoiceResult(board, timings, [str(a.path) for a in audios], _voice_name(audios),
-                       str(track) if track else None, music.beat_times(track), timing.total_s, notes, timing.defects)
+                       str(music.path) if music.path else None, music.info, [], timing.total_s, notes,
+                       timing.defects)

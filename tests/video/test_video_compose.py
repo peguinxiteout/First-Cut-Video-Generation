@@ -4,6 +4,7 @@ from __future__ import annotations
 import pytest
 from PIL import Image, ImageDraw
 
+from src.core.config import load_yaml_config
 from src.core.exceptions import RenderingError
 from src.models.speech.mock import MockSpeechProvider
 from src.rendering import ffmpeg, video_compose
@@ -51,6 +52,7 @@ def _compose(tmp_path, *, voices=None, overlays=None, music=None, clips=None, **
 
 # -- the file -----------------------------------------------------------------------------------------
 
+@pytest.mark.slow
 def test_the_file_is_h264_yuv420p_with_aac_at_the_asked_size_fps_and_length(tmp_path):
     result = _compose(tmp_path)
 
@@ -68,6 +70,7 @@ def test_the_voice_is_normalised_to_minus_16_lufs(tmp_path):
     assert result.loudness.true_peak_dbfs <= -1.0
 
 
+@pytest.mark.slow
 def test_a_quiet_voice_and_a_loud_one_end_at_the_same_level(tmp_path):
     loud = _voice(tmp_path / "loud.wav")
     quiet = tmp_path / "quiet.wav"
@@ -110,6 +113,7 @@ def test_the_cuts_land_where_the_frame_counts_say(tmp_path):
 
 # -- the text ------------------------------------------------------------------------------------------
 
+@pytest.mark.slow
 def test_an_overlay_is_burned_in_for_its_window_only(tmp_path):
     result = _compose(tmp_path)
     inside, before, after = (_frame(result.video_path, t, tmp_path, f"t{i}") for i, t in enumerate((1.2, 0.2, 2.4)))
@@ -119,6 +123,7 @@ def test_an_overlay_is_burned_in_for_its_window_only(tmp_path):
     assert after.getpixel(probe_point)[0] < 60                                                      # green clip, box gone
 
 
+@pytest.mark.slow
 def test_an_overlay_fades_in_and_out(tmp_path):
     result = _compose(tmp_path)
     at_start = _frame(result.video_path, 0.6, tmp_path, "start")        # 0.1 s into a 0.3 s fade
@@ -128,6 +133,7 @@ def test_an_overlay_fades_in_and_out(tmp_path):
 
 # -- the voice -------------------------------------------------------------------------------------------
 
+@pytest.mark.slow
 def test_each_line_is_placed_at_its_start_time(tmp_path):
     late = VoicePart(_voice(tmp_path / "late.wav"), 4.5)
     result = _compose(tmp_path, voices=[late])
@@ -144,6 +150,7 @@ def test_with_no_voice_the_file_still_has_a_silent_audio_track(tmp_path):
     assert result.notes == ["The audio is silent, so it was not loudness-normalised."]
 
 
+@pytest.mark.slow
 def test_a_music_track_goes_under_the_voice(tmp_path):
     music = tmp_path / "music.wav"
     ffmpeg.run(["-f", "lavfi", "-i", "sine=frequency=330:duration=7:sample_rate=44100", str(music)])
@@ -199,3 +206,39 @@ def test_shot_frames_never_drift_from_the_total():
 def test_shot_frames_round_each_cut_to_its_own_frame_not_each_shot_to_its_own_length():
     assert video_compose.shot_frames([0.3, 0.3, 0.3], 10) == [3, 3, 3]
     assert sum(video_compose.shot_frames([0.34] * 10, 25)) == round(3.4 * 25)
+
+
+def test_every_clip_input_caps_its_decoder_threads_because_all_of_them_are_open_at_once(tmp_path, monkeypatch):
+    seen = []
+    monkeypatch.setattr(video_compose.ffmpeg, "run", lambda args, **kw: seen.append(list(args)))
+    clips = [ClipPart(tmp_path / f"c{i}.mp4", 10) for i in range(3)]
+    overlays = [OverlayPart(tmp_path / f"o{i}.png", 1.0, 2.0) for i in range(4)]
+    video_compose._render_picture(clips, overlays, W, H, FPS, tmp_path / "out.mp4", 26, "veryfast", "", 3, 0.4)
+    args = seen[0]
+    inputs = [i for i, a in enumerate(args) if a == "-i"]
+    assert len(inputs) == 7
+    for i in inputs[:3]:
+        assert args[i - 2:i] == ["-threads", "2"]
+    for i in inputs[3:]:                                    # each overlay picture: threads, then the loop options, then -i
+        assert args[i - 8:i - 6] == ["-threads", "1"]
+    assert args[args.index("-filter_complex_threads") + 1] == "2"          # the graph's own threads, before the graph
+    assert args.index("-filter_complex_threads") < args.index("-filter_complex")
+    at = args.index("-c:v")
+    assert args[at - 2:at] == ["-threads", "4"]                            # x264's, an output option
+
+
+def test_the_thread_caps_come_from_the_config_and_default_to_two_and_one(monkeypatch):
+    assert load_yaml_config("video/styles.yaml")["compose"] == {"decode_threads": 2, "overlay_threads": 1,
+                                                                 "filter_threads": 2, "encode_threads": 4}
+    assert video_compose.thread_caps() == (2, 1) and video_compose.output_caps() == (2, 4)
+    real = video_compose.load_yaml_config
+    monkeypatch.setattr(video_compose, "load_yaml_config",
+                        lambda name: {**real(name), "compose": {"decode_threads": 4, "overlay_threads": 3,
+                                                                "filter_threads": 5, "encode_threads": 6}}
+                        if name == "video/styles.yaml" else real(name))
+    assert video_compose.thread_caps() == (4, 3) and video_compose.output_caps() == (5, 6)
+    monkeypatch.setattr(video_compose, "load_yaml_config",
+                        lambda name: {**real(name), "compose": {"decode_threads": 0}} if name == "video/styles.yaml" else real(name))
+    assert video_compose.thread_caps() == (1, 1) and video_compose.output_caps() == (2, 4)   # never below one thread
+    monkeypatch.setattr(video_compose, "load_yaml_config", lambda name: {} if name == "video/styles.yaml" else real(name))
+    assert video_compose.thread_caps() == (2, 1) and video_compose.output_caps() == (2, 4)   # no section: the defaults

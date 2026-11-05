@@ -3,10 +3,9 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from src.core.types import QualityGateResult
 from src.data.video_schemas import (
     ClipResult, LineTiming, Shot, Storyboard, VideoBrief, VideoEvaluationResult, VideoGenerationRecord,
-    VideoInput, VideoScript,
+    VideoGate, VideoInput, VideoScript,
 )
 
 
@@ -67,7 +66,7 @@ def test_a_line_timing_knows_its_length():
 
 
 def test_an_unevaluated_result_does_not_pass():
-    assert VideoEvaluationResult().gate_result == QualityGateResult.FAIL
+    assert VideoEvaluationResult().gate_result == VideoGate.FAIL
 
 
 def test_the_record_round_trips_through_json():

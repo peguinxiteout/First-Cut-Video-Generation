@@ -1,0 +1,90 @@
+# The quality gate (node 10, agents/video/gate.py): measurements on the finished file and on the
+# plan it was made from. No model judges anything here.
+#
+# Each check says pass, warn or fail. A pass scores 1, a warn 0.5, a fail 0, weighted by `weights`
+# (a check that could not be measured is left out and the rest are re-weighted); the score is that
+# share out of 100. The gate FAILS when a hard check fails or the score is under fail_below; it WARNS
+# when any check warns or the score is under pass_at; otherwise it PASSES. The record's status is
+# then "passed", "warned" or "failed", and a FAIL still keeps the MP4.
+weights:
+  format: 0.07
+  duration: 0.07
+  loudness: 0.07
+  black_frames: 0.07
+  frozen: 0.05
+  narration_gaps: 0.05
+  safe_zones: 0.07
+  numbers: 0.12
+  thumbnail: 0.04
+  upscale: 0.07
+  one_voice: 0.07
+  hook: 0.06
+  chips: 0.07
+  narration_picture: 0.08
+  repeated_photo: 0.04
+
+pass_at: 85
+fail_below: 70
+
+# A hard check that fails fails the whole gate. The others only lower the score and warn.
+hard: [format, duration, black_frames, safe_zones, numbers, thumbnail, one_voice, hook, chips, narration_picture]
+
+format:
+  vcodec: h264
+  acodec: aac
+  pix_fmt: yuv420p
+  fps_tolerance: 0.1
+  min_size_bytes: 50000
+
+duration:
+  warn_s: 0.25              # off the length asked for by more than this: warn
+  fail_s: 0.5               # ... by more than this: fail
+
+loudness:
+  target_lufs: -16
+  pass_lu: 1.0              # within this of the target: pass
+  fail_lu: 3.0              # farther than this: fail; between: warn
+  max_true_peak_dbfs: -1.0  # above this: warn; at or above 0: fail
+
+# Frames of one colour that are nearly black, for this long or more. Dark photographs and the dark
+# end card are not black: the pixel threshold is the share of the brightness range below which a
+# pixel counts as black, and a frame counts when 98% of its pixels do.
+black:
+  min_s: 0.15
+  pixel_threshold: 0.08
+  warn_s: 0.0               # any black at all: warn
+  fail_s: 0.3               # more than this in total: fail
+
+# A picture that does not change for this long. The closing card is still by design and is left out.
+frozen:
+  noise_db: -60
+  min_s: 1.0
+  warn_s: 1.0
+  fail_s: 2.0
+
+# Silence between spoken lines, from the measured length of each line.
+narration:
+  max_gap_s: 1.2            # a pause between two lines longer than this: warn
+  fail_gap_s: 2.5           # ... longer than this: fail
+  max_lead_s: 1.2           # silence before the first word
+
+safe_zones:
+  tolerance_px: 6           # a piece of text may stray this far over the edge (anti-aliasing)
+
+thumbnail:
+  warn_stddev: 14           # brightness spread (0-255) under which a picture reads as almost blank
+  fail_stddev: 6
+  min_size_bytes: 4000
+
+# Narration against picture: every amenity a spoken line names (the vocabulary of vision.yaml) must be
+# a tag of one of the photographs that line plays over. This many amenities named and not shown: fail.
+narration_picture:
+  fail_missing: 1
+
+# The same photograph in two shots one after the other: this many repeats or more warns.
+repeated_photo:
+  warn_at: 1
+
+upscale:
+  warn_above: 1.3           # the most a photograph's pixels may be enlarged, at the worst moment of a shot
+  fail_above: 2.0

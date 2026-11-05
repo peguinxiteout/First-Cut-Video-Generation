@@ -23,7 +23,8 @@ import math
 import numpy as np
 from PIL import Image, ImageOps
 
-from src.agents.brochure import image_plan, topics, vision, vision_offline
+from src.agents.brochure import image_plan, topics, vision_offline
+from src.agents.video import photo_tags, vision_cache
 from src.agents.video._brochure import photo_score
 from src.agents.video.offline import model_blocker
 from src.core.config import load_yaml_config
@@ -59,13 +60,14 @@ def sharpness_score(variance: float) -> float:
 
 def read_pictures(images: list[ImageAsset], offline: bool) -> tuple[dict[str, ImageAnalysis], str]:
     """The vision reading of every picture, and how it was made."""
-    blocker = model_blocker(offline)
+    blocker = model_blocker(offline, "vision")
     analyses: dict[str, ImageAnalysis] = {}
     mode = f"read from the uploads ({blocker})"
     if not blocker:
         try:
-            analyses = vision.run(images)
-            mode = "read by a vision model"
+            reading = vision_cache.classify(images)
+            analyses = reading.analyses
+            mode = "read by a vision model" + (f" ({' '.join(reading.notes)})" if reading.notes else "")
         except Exception as exc:  # noqa: BLE001 - the uploads themselves tell enough to plan from
             logger.info("Vision unavailable (%s); reading the uploads offline", type(exc).__name__)
             mode = f"read from the uploads (vision unavailable: {type(exc).__name__})"
@@ -98,6 +100,8 @@ def run(images: list[ImageAsset], offline: bool, photo_shots: int):
         asset = RankedAsset(
             image_id=image.image_id, filename=image.filename, path=image.path, width=width, height=height,
             sharpness=round(variance, 1), quality=analysis.quality, category=category, topic=topic,
+            caption=getattr(analysis, "caption", ""),
+            tags=photo_tags.merge(getattr(analysis, "tags", []), getattr(analysis, "caption", "")),
             cluster=plan.cluster(image.image_id))
         if width == 0:
             asset.usable, asset.note = False, "cannot be read"

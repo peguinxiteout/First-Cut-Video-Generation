@@ -8,7 +8,7 @@ loop on Windows. Run as:
 
 `jobs.json` is a list of {"html", "png", "width", "height"}. One browser is
 started for all of them. Each page is screenshotted with a transparent
-background; what its text elements (those marked data-safe) measure in the
+background; what its visible text elements (those marked data-safe) measure in the
 page is written to <jobs.json>.measure.json, so the caller can check them
 against the safe zone.
 """
@@ -20,7 +20,7 @@ import sys
 from pathlib import Path
 
 _MEASURE_JS = """
-() => Array.from(document.querySelectorAll('[data-safe]')).map(el => {
+() => Array.from(document.querySelectorAll('[data-safe]')).filter(el => getComputedStyle(el).visibility !== 'hidden').map(el => {
   const r = el.getBoundingClientRect();
   return {x: r.x, y: r.y, w: r.width, h: r.height, text: (el.innerText || '').trim().slice(0, 80)};
 })

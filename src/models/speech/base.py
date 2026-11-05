@@ -46,8 +46,13 @@ class Audio:
     from_cache: bool = False
     voice: str = ""
     model_id: str = ""
+    cost_usd: float = 0.0                # what this line cost to make; 0 when it came from the cache
+    spoken: str = ""                     # the text this provider was given, after respelling
     # Why a provider ahead of this one did not speak, in order.
     notes: list[str] = field(default_factory=list)
+    # The providers that were tried and FAILED on this line, as (name, reason). A provider that
+    # is merely unavailable (no key, no engine) is a note, not a failure.
+    failed: list[tuple[str, str]] = field(default_factory=list)
 
 
 class SpeechProvider(ABC):
@@ -61,6 +66,15 @@ class SpeechProvider(ABC):
 
     def unavailable_reason(self) -> str:
         return "" if self.is_available() else f"{self.name} is not available"
+
+    def phoneme_words(self) -> frozenset[str]:
+        """Lower-case words this provider says from a phonetic spelling of its own, so the
+        service leaves them as written instead of respelling them."""
+        return frozenset()
+
+    def cache_salt(self, text: str) -> str:
+        """What else, besides the text and voice, changes the audio this provider makes."""
+        return ""
 
     @abstractmethod
     def synthesize(self, text: str, voice: Optional[str], output_path: Path) -> Audio:

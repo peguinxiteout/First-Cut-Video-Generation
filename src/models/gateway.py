@@ -13,7 +13,10 @@ no agent code changes.
 from __future__ import annotations
 
 import os
+from contextlib import contextmanager
+from contextvars import ContextVar
 from functools import lru_cache
+from typing import Iterator, Optional
 
 from src.core.config import load_yaml_config, settings
 from src.core.exceptions import ConfigError, ModelProviderError
@@ -48,6 +51,44 @@ def _build_provider(provider_name: str, model_env_var: str) -> LLMProvider:
     return provider_cls(model=model_name)
 
 
+class CallPolicy:
+    """What a run may reach through the gateway (set by a workflow with
+    `restricted`). `vendors` and `roles` are what is allowed, empty = no
+    limit; every call refused is written to `blocked`, so the run can say so."""
+
+    def __init__(self, vendors=(), roles=()):
+        self.vendors = frozenset(vendors)
+        self.roles = frozenset(roles)
+        self.blocked: list[str] = []
+
+    def refuse(self, message: str) -> ModelProviderError:
+        if message not in self.blocked:
+            self.blocked.append(message)
+        return ModelProviderError(f"blocked by the run's call policy: {message}")
+
+    def check(self, role_name: str, vendor: str, what: str = "call") -> None:
+        if self.roles and role_name not in self.roles:
+            raise self.refuse(f"role '{role_name}' may not be asked in this run")
+        if self.vendors and vendor not in self.vendors:
+            raise self.refuse(f"{what} to {vendor} for role '{role_name}'")
+
+
+_call_policy: ContextVar[Optional[CallPolicy]] = ContextVar("gateway_call_policy", default=None)
+
+
+@contextmanager
+def restricted(vendors=(), roles=()) -> Iterator[CallPolicy]:
+    """Within the block, gateway calls outside `vendors` and `roles` are
+    refused (a ModelProviderError, as for any provider failure) and listed on
+    the policy that is yielded."""
+    policy = CallPolicy(vendors, roles)
+    token = _call_policy.set(policy)
+    try:
+        yield policy
+    finally:
+        _call_policy.reset(token)
+
+
 @lru_cache
 def _role_config() -> dict:
     return load_yaml_config("models.yaml")["roles"]
@@ -79,10 +120,19 @@ def call_with_fallback(role: ModelRole | str, fn_name: str, *args, **kwargs):
     too — not just the fallback's. Without this, a fallback failure (e.g.
     OpenRouter free-pool congestion) silently masks the real problem, which
     is usually why the primary failed in the first place."""
+    policy = _call_policy.get()
+    if policy:
+        role_name = role.value if isinstance(role, ModelRole) else role
+        policy.check(role_name, _role_config().get(role_name, {}).get("provider", ""))
     primary = get_provider_for_role(role)
     try:
         return getattr(primary, fn_name)(*args, **kwargs)
     except ModelProviderError as primary_exc:
+        if policy:
+            try:
+                policy.check(role_name, _role_config()["fallback"]["provider"], "fallback")
+            except ModelProviderError:
+                raise primary_exc
         fallback = _fallback_provider()
         try:
             return getattr(fallback, fn_name)(*args, **kwargs)

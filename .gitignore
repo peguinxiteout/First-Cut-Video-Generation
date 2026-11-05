@@ -9,6 +9,9 @@ data/generated/*
 data/generated_videos/*
 data/video_cache/
 data/speech_cache/
+data/music_cache/
+data/vision_cache/
+data/ledger_cache/
 mlruns/
 mlartifacts/
 .pytest_cache/

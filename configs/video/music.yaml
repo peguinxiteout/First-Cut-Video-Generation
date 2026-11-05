@@ -1,0 +1,61 @@
+# Background music. The chain is tried in order and the first provider that
+# makes a track wins; "none" never fails, so a video always gets a mix.
+#
+#   beatoven  Beatoven.ai public API (needs BEATOVEN_API_KEY); instrumental, the length
+#             asked for in the prompt, then cut to the video
+#   lyria     Gemini API Lyria (needs GEMINI_API_KEY; no free tier, paid per track)
+#   library   a track from data/music/<mood>/<track>/ (the audio file and a
+#             licence.txt beside it; a track without one is not used)
+#   none      no music
+chain: [beatoven, lyria, library, none]
+
+# The music is always instrumental. $mood, $tone, $objective and $direction
+# come from the brief (music_mood, tone, objective, creative_direction).
+prompt: >-
+  Instrumental only, no vocals and no lyrics. Background music for a short
+  promotional video: $mood. A $tone feel, $objective. $direction
+  A steady, unobtrusive bed that leaves room for a voice-over, with no
+  sudden stops.
+objectives:
+  awareness: to make people aware of the place and remember it
+  site_visit: to invite people to come and see it in person
+  launch: to mark an exciting new launch
+  enquiry: to prompt people to get in touch
+
+# Beatoven has no length field: the prompt says "a N-second instrumental track", N being the
+# video's length to the nearest second plus extra_s, and the track is cut to the video. The API returns
+# no price and no licence terms, so both are recorded from here. MusicGen was ruled out
+# because its weights are CC-BY-NC.
+beatoven:
+  url: https://public-api.beatoven.ai
+  model_id: beatoven-compose
+  extra_s: 1
+  cost_usd: 0.0                   # not published; the track is drawn from the account's plan
+  poll_s: 5
+  poll_timeout_s: 300
+  licence_note: >-
+    Beatoven.ai generated track. The API returns no licence terms; they depend on the
+    account's plan when the track was made, and commercial use is NOT confirmed. Check the
+    plan before the video is published.
+
+# Lyria's models by what the video needs. A clip model makes 30 s; a longer
+# video takes the full-song model. cost_usd is per track, from Google's price
+# list (checked 4 Nov 2026); the record carries it so a run's spend is known.
+lyria:
+  url: https://generativelanguage.googleapis.com/v1beta/interactions
+  api_revision: "2026-05-20"
+  models:
+    - id: lyria-3-clip-preview
+      max_video_s: 30
+      cost_usd: 0.04
+    - id: lyria-3.5
+      max_video_s: 120
+      cost_usd: 0.08
+
+# The track is cut to the length of the video and fades out over fade_out_s.
+fade_out_s: 1.5
+fade_in_s: 0.4
+
+library:
+  folder: music          # under the data folder
+  extensions: [".wav", ".mp3", ".m4a", ".ogg", ".flac"]

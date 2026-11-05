@@ -193,3 +193,42 @@ def measure_loudness(path: Path | str, *, timeout: float = 120) -> Optional[Loud
 
 def _db(text: str) -> float:
     return float("-inf") if text.endswith("inf") else float(text)
+
+
+# ---------------------------------------------------------------------------
+# Black and frozen picture
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class Span:
+    start_s: float
+    end_s: float
+
+    @property
+    def length_s(self) -> float:
+        return round(self.end_s - self.start_s, 3)
+
+
+_BLACK = re.compile(r"black_start:(-?\d+(?:\.\d+)?)\s+black_end:(-?\d+(?:\.\d+)?)")
+_FREEZE_START = re.compile(r"freeze_start:\s*(-?\d+(?:\.\d+)?)")
+_FREEZE_END = re.compile(r"freeze_end:\s*(-?\d+(?:\.\d+)?)")
+DETECT_HEIGHT = 360          # the picture is looked at at this height: faster, and as good for these two questions
+
+
+def detect_black_and_frozen(path: Path | str, *, black_min_s: float, black_pixel: float, freeze_noise_db: float,
+                            freeze_min_s: float, timeout: float = 180) -> tuple[list[Span], list[Span]]:
+    """(stretches that are black, stretches that do not change) in a video's picture, from one
+    pass of ffmpeg's blackdetect and freezedetect. A freeze that runs to the end of the file is
+    closed at the file's length."""
+    path = Path(path)
+    info = probe(path)
+    report = run_info(["-i", str(path), "-an", "-vf",
+                       f"scale=-2:{DETECT_HEIGHT},blackdetect=d={black_min_s}:pix_th={black_pixel},"
+                       f"freezedetect=n={freeze_noise_db}dB:d={freeze_min_s}",
+                       "-f", "null", "-"], timeout=timeout)
+    black = [Span(float(a), float(b)) for a, b in _BLACK.findall(report)]
+    starts = [float(s) for s in _FREEZE_START.findall(report)]
+    ends = [float(e) for e in _FREEZE_END.findall(report)]
+    if len(starts) > len(ends):
+        ends.append(info.duration_s)
+    return black, [Span(a, b) for a, b in zip(starts, ends)]

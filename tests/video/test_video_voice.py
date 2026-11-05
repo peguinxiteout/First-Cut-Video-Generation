@@ -7,7 +7,7 @@ import pytest
 
 from src.agents.video import voice
 from src.data.video_schemas import ScriptLine, Shot, Storyboard, VideoBrief, VideoScript
-from src.models.music import NullMusic, get_music_provider
+from src.models.music import MusicService
 from src.models.speech import SpeechService
 from src.models.speech.mock import MockSpeechProvider
 from src.models.speech.silent import SilentSpeechProvider
@@ -201,11 +201,10 @@ def test_the_voice_the_brief_asks_for_is_passed_to_the_service(tmp_path):
     assert {v for _, v in mock.calls} == {"B"}
 
 
-def test_there_is_no_music_and_no_beats_yet(tmp_path):
-    assert isinstance(get_music_provider(), NullMusic)
-    assert NullMusic().track("calm", 15, tmp_path / "m.wav") is None
-    assert NullMusic().beat_times(None) == []
+def test_with_no_music_provider_there_is_no_music_and_no_beats(tmp_path):
     board = Storyboard(shots=[Shot(index=0, seconds=4.0, line_ids=[0, 1]),
                               Shot(index=1, kind="card", camera="still", seconds=2.0, line_ids=[2])])
-    result = voice.run(_script(), board, _brief(), tmp_path, _service(tmp_path, MockSpeechProvider()))
+    result = voice.run(_script(), board, _brief(), tmp_path, _service(tmp_path, MockSpeechProvider()),
+                       MusicService([], tmp_path / "music_cache"))
     assert result.music_track is None and result.beat_times == []
+    assert result.music_info.provider == "none"

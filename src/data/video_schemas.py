@@ -11,12 +11,12 @@ there, not copied.
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Optional
+from enum import Enum
+from typing import Any, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
-from src.core.types import QualityGateResult
-from src.data.schemas import HumanReview, WorkflowEvaluation
+from src.data.schemas import HumanReview, ImageAnalysis, WorkflowEvaluation
 
 VIDEO_DURATIONS = (10, 15, 30, 45, 60)
 VIDEO_ASPECTS = ("9:16", "16:9", "1:1")
@@ -54,6 +54,9 @@ class VideoInput(BaseModel):
     creative_direction: str = ""
     allow_generated: bool = False
     hero_image: str = ""                  # an image id or file name: the picture the video opens on
+    burn_captions: bool = True            # print each spoken line on the picture (captions.srt is written either way)
+    grade: bool = True                    # the light colour grade; pacing.yaml can switch it off for every video
+    pronunciations: dict[str, str] = Field(default_factory=dict)   # spoken respellings for this property, over speech.yaml's
 
     @field_validator("duration_s")
     @classmethod
@@ -82,6 +85,11 @@ class VideoInput(BaseModel):
     @classmethod
     def _model(cls, value: str) -> str:
         return value.strip().lower() or "auto"
+
+    @field_validator("pronunciations")
+    @classmethod
+    def _pronunciations(cls, value: dict[str, str]) -> dict[str, str]:
+        return {k.strip(): str(v).strip() for k, v in value.items() if k.strip() and str(v).strip()}
 
 
 # ---------------------------------------------------------------------------
@@ -129,6 +137,14 @@ class BrandKit(BaseModel):
     website: str = ""
 
 
+class PhotoAnalysis(ImageAnalysis):
+    """The vision reading of a picture for a video: the brochure's reading, plus a plain
+    caption and the tags of what is clearly visible (src/agents/video/photo_tags.py)."""
+
+    caption: str = ""
+    tags: list[str] = Field(default_factory=list)
+
+
 class RankedAsset(BaseModel):
     """One uploaded picture as the video sees it: what it is, how sharp and
     how big, and whether it can carry a shot."""
@@ -142,6 +158,8 @@ class RankedAsset(BaseModel):
     quality: float = 0.0                  # 0-10, the vision reading blended with sharpness
     category: str = ""                    # a vision category: exterior, lifestyle, floorplan, ...
     topic: str = ""                       # what it shows, a key of brochure/topics.py (pool, exterior, ...)
+    caption: str = ""                     # what is visible, in a sentence (empty without a vision reading)
+    tags: list[str] = Field(default_factory=list)   # what is clearly visible, as photo_tags names (empty without vision)
     cluster: int = -1                     # pictures that look alike share one (image_plan)
     duplicate_of: str = ""                # the better picture of its cluster, when this is not it
     usable: bool = True
@@ -156,6 +174,8 @@ class ScriptLine(BaseModel):
     text: str
     role: str = "body"                    # hook | feature | proof | cta
     topic: str = ""                       # a key of src/agents/brochure/topics.py, for choosing the photograph
+    tags: list[str] = Field(default_factory=list)   # what a photograph must show to carry this line (photo_tags names)
+    photo: str = ""                       # the picture the script set aside for it, when it needs one
 
     @property
     def words(self) -> int:
@@ -180,6 +200,8 @@ class Shot(BaseModel):
     image_id: str = ""
     source_path: str = ""
     subject: str = ""                     # what the photograph shows (its topic), for the person reading the plan
+    caption: str = ""                     # what is visible in it, in a sentence (vision reading; empty offline)
+    tags: list[str] = Field(default_factory=list)   # what is clearly visible in it (photo_tags names; empty offline)
     image_prompt: str = ""                # generated shots only
     generated_kind: str = ""              # one of the sector's allowed kinds in configs/video/styles.yaml
     camera: str = "push_in"
@@ -189,6 +211,8 @@ class Shot(BaseModel):
     overlay_text: list[str] = Field(default_factory=list)
     line_ids: list[int] = Field(default_factory=list)
     reuse: bool = False                   # a second crop of a photograph already used
+    layout: str = ""                      # fill (cropped to the frame) | fit (whole photo on a blurred copy); set when the clip is made
+    peak_upscale: float = 0.0             # the most the photograph's pixels are enlarged at any moment of the shot
 
     @field_validator("kind")
     @classmethod
@@ -231,6 +255,8 @@ class LineTiming(BaseModel):
     provider: str = ""                    # the speech provider that made it
     voice: str = ""
     mode: str = "speech"                  # speech | silent (no voice available; captions carry the line)
+    spoken: str = ""                      # the text the voice was given (respelled where speech.yaml says), not what is printed
+    cost_usd: float = 0.0                 # what the line cost to speak; 0 from the cache
 
     @property
     def duration_s(self) -> float:
@@ -238,15 +264,21 @@ class LineTiming(BaseModel):
 
 
 class OverlayItem(BaseModel):
-    """One transparent picture of on-screen text, shown over one shot."""
+    """One transparent picture of on-screen text (or of the scrim behind it),
+    shown for one stretch of the video. A title, a chip or a card line is its
+    own item so each can come in on its own."""
 
     shot_index: int
-    kind: str = "title"                   # title (name, price, chips) | end_card
+    kind: str = "title"                   # title (name, price, chips) | end_card | caption
+    key: str = ""                         # which piece of its kind: heading, chip0, cta, caption, ...
     path: str = ""
     start_s: float = 0.0
     end_s: float = 0.0
     texts: list[str] = Field(default_factory=list)
     renderer: str = "browser"             # browser | fallback
+    fade_s: float = 0.3                   # fade in and out
+    slide_px: int = 0                     # slides up from this far below while it fades in
+    rects: list[dict[str, float | str]] = Field(default_factory=list)   # where its text landed: x, y, w, h in frame pixels
 
 
 class ClipResult(BaseModel):
@@ -258,12 +290,32 @@ class ClipResult(BaseModel):
     provider: str = ""
     model_id: str = ""
     mode: str = "kenburns"                # model | kenburns | card
+    layout: str = ""                      # fill | fit (real shots)
+    peak_upscale: float = 0.0
     ok: bool = True
     reason: str = ""                      # why a requested provider was not used
     from_cache: bool = False
     duration_s: float = 0.0
     cost_usd: float = 0.0
     first_frame_score: Optional[float] = None
+
+
+class MusicInfo(BaseModel):
+    """What the background music is and how it was had. `provider` is "none"
+    when there is no music; `notes` says why each provider ahead of the one
+    that answered did not."""
+
+    provider: str = "none"                # beatoven | lyria | library | none
+    model_id: str = ""
+    track_id: str = ""                    # the generator's own id for the track
+    prompt: str = ""                      # what was asked of a generator (empty for a library track)
+    path: str = ""
+    title: str = ""                       # a library track's name
+    licence: str = ""                     # a library track's licence.txt first line; for a generated track, what is known of its terms
+    cost_usd: float = 0.0
+    from_cache: bool = False
+    duration_s: float = 0.0               # of the track as the provider made it
+    notes: list[str] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -281,19 +333,42 @@ class VideoMeasurements(BaseModel):
     acodec: str = ""
     has_audio: bool = False
     size_bytes: int = 0
+    pix_fmt: str = ""
     loudness_lufs: Optional[float] = None
     true_peak_dbfs: Optional[float] = None
     black_segments: int = 0
-    frozen_s: float = 0.0
+    black_s: float = 0.0                  # in all
+    frozen_s: float = 0.0                 # in all, the still closing card included
+    black_spans: list[list[float]] = Field(default_factory=list)     # [start, end] seconds
+    frozen_spans: list[list[float]] = Field(default_factory=list)
+
+
+class VideoGate(str, Enum):
+    PASS = "pass"
+    WARN = "warn"
+    FAIL = "fail"
+
+
+class GateCheck(BaseModel):
+    """One measured check of the quality gate (configs/video/evaluation.yaml)."""
+
+    name: str
+    status: str = "pass"                  # pass | warn | fail | skipped (could not be, or need not be, measured)
+    detail: str = ""                      # what was measured, in words
+    weight: float = 0.0
+    hard: bool = False                    # a failure fails the whole gate
+    shots: list[int] = Field(default_factory=list)      # the shots (1-based) it is about
+    values: dict[str, Any] = Field(default_factory=dict)
 
 
 class VideoEvaluationResult(BaseModel):
     checks: dict[str, str] = Field(default_factory=dict)       # check -> "pass" | plain-language result
-    defects: list[str] = Field(default_factory=list)           # reasons the video should not go out
+    items: list[GateCheck] = Field(default_factory=list)
+    defects: list[str] = Field(default_factory=list)           # every check that did not pass, "[FAIL] ..." or "[WARN] ..."
     feedback: list[str] = Field(default_factory=list)
     failed_shots: list[int] = Field(default_factory=list)
-    quality_score: float = 0
-    gate_result: QualityGateResult = QualityGateResult.FAIL
+    quality_score: float = 0                                   # 0-100, the weighted share of passes
+    gate_result: VideoGate = VideoGate.FAIL
     judge: str = "measured"               # measured | model
 
 
@@ -305,7 +380,7 @@ class VideoGenerationRecord(BaseModel):
     video_id: str
     property_id: str
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    status: str = "pending"               # pending | running | planned | completed | failed
+    status: str = "pending"               # pending | running | planned | passed | warned | failed (the gate's result; a gate FAIL keeps the MP4)
     error: Optional[str] = None
 
     output_dir: Optional[str] = None
@@ -328,6 +403,7 @@ class VideoGenerationRecord(BaseModel):
     clips: list[ClipResult] = Field(default_factory=list)
     voice: str = ""                       # speech provider and voice that spoke
     music: str = ""
+    music_info: Optional[MusicInfo] = None
 
     measurements: Optional[VideoMeasurements] = None
     evaluation: Optional[VideoEvaluationResult] = None

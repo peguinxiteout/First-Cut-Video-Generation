@@ -1,0 +1,16 @@
+# What a video run may reach. Read by agents/video/policy.py.
+#
+# allowed_vendors   the vendors a video run may call: Gemini (the language models,
+#                   and Lyria), Google Cloud TTS (the voice) and Beatoven (the music).
+#                   Any other vendor's key (OpenRouter, Cloudflare, fal ...) is
+#                   blanked for the run, and a call that would fall back to one
+#                   (the model gateway's OpenRouter fallback, for example) is
+#                   refused and written to the record's notes. Empty = no limit.
+# model_roles       the language-model roles (configs/models.yaml) a video run
+#                   may ask. An agent whose role is not listed takes its own
+#                   fallback straight away. Empty = every role. These are all
+#                   Gemini roles: vision for the asset audit, the text roles for
+#                   the fact ledger and (step 6) the script and storyboard.
+allowed_vendors: [gemini, google_cloud_tts, beatoven]
+model_roles: [vision, property_intelligence, copywriter, creative_director, critic, narrative, image_gap,
+              visual_director]

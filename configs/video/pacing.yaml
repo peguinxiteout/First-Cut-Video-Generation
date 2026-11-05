@@ -17,9 +17,10 @@ fps:
   draft: 12
 
 # The closing card (palette, logo, call to action, RERA, contact) and the
-# opening shot. Both in seconds.
+# opening shot. Both in seconds. The hook shot is never shorter than min_hook_s, in the
+# plan or on the timeline: the time comes from the shots after it.
 end_card_s: 2.0
-min_hook_s: 3.0
+min_hook_s: 2.5
 
 # Average length of a photograph's shot, by pace. A category sets the pace;
 # a tone can override it.
@@ -89,16 +90,36 @@ voice:
   min_lead_s: 0.1
   min_gap_s: 0.1
   min_end_card_s: 1.5
+  min_other_shot_s: 1.0         # the least a shot may be cut to, to give the hook its minimum
   pre_roll_s: 0.15
   fit_tolerance_s: 0.5
 
 # On-screen text: fade length, how long after a shot starts its text appears,
 # how long before the shot ends it goes, and the width of an SRT caption line.
+# Every piece of a title or the closing card is its own picture so it can come
+# in on its own: it fades in while sliding up slide_px (at a 1080 px frame
+# width) over slide_s, the next piece stagger_s after it.
 overlays:
   fade_s: 0.3
   title_delay_s: 0.35
   tail_s: 0.15
   caption_chars_per_line: 42
+  slide_px: 40
+  slide_s: 0.45
+  title_stagger_s: 0.15
+  card_stagger_s: 0.3
+
+# Burned-in captions: one spoken line at a time, a dark rounded box under white
+# text. bottom is where the box's lower edge sits by default, as a share of the
+# frame height; it moves up or down to clear a title, a chip or the closing
+# card's text, by at least gap_px (at 1080 px). A caption that fits nowhere inside
+# the safe zone is left off the picture (it is still in captions.srt).
+captions:
+  fade_s: 0.12
+  font_px: 50
+  bottom: 0.665
+  gap_px: 28
+  width_share: 0.88      # of the safe zone's width
 
 # The finished file.
 compose:
@@ -110,3 +131,13 @@ compose:
   audio_bitrate: 160k
   thumbnail_s: 1.0
   music_gain: 0.2
+  # A crossfade of this length at every cut, centred on the cut, so the video is
+  # as long as it was (each clip is made a little longer to feed it). 0 = hard cuts.
+  transition_s: 0.3
+  # A light, even grade over every photograph (not the closing card: its colours
+  # are the brand's). Set enabled false to turn it off for every video.
+  grade:
+    enabled: true
+    contrast: 1.05
+    saturation: 1.10
+    brightness: 0.0

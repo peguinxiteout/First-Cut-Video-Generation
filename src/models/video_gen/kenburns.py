@@ -71,6 +71,29 @@ class Geometry:
         return cls(src_w, src_h, win_w, win_h, fx * src_w, fy * src_h)
 
 
+def crop_box(src_w: int, src_h: int, out_aspect: float, focal: str) -> tuple[int, int, int, int]:
+    """The largest window of the picture in the video's shape, placed the way
+    CSS object-position places it: "50% 50%" centres it, "0% 50%" pushes it
+    against the left edge, "100% 50%" the right. (focal.focal_point speaks this.)"""
+    fx, fy = parse_focal(focal)
+    if src_w / src_h > out_aspect:
+        win_w, win_h = round(src_h * out_aspect), src_h
+        left, top = round(fx * (src_w - win_w)), 0
+    else:
+        win_w, win_h = src_w, round(src_w / out_aspect)
+        left, top = 0, round(fy * (src_h - win_h))
+    return left, top, left + win_w, top + win_h
+
+
+def peak_zoom(camera: str) -> float:
+    """The closest the camera ever gets to the picture on this move (1.0 = the
+    whole window): how much the photograph's pixels are enlarged at the worst
+    moment, on top of fitting the window to the frame."""
+    if camera == "still":
+        return 1.0
+    return 1.0 + PUSH_ZOOM if camera in ("push_in", "pull_out") else PAN_ZOOM
+
+
 def _axis_travel(centre: float, size: float, win: float, fraction_of_win: float) -> tuple[float, float]:
     """Start and end centres (along one axis) for a pan or tilt of a window
     `win` wide, over a picture `size` wide, moving as far as is allowed."""
