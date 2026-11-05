@@ -115,6 +115,12 @@ generic_items: [property, project, building, tower, towers, place, video, it, th
 weak_words: [kid, kids, child, children, tree, trees, greenery, green, garden, gardens, landscaped, open space,
              green space, park, water body, courtyard]
 
+# Little words that carry nothing once the rules have read the rest of a clause ("Make a ... for ...").
+# Creative direction is what is left; a clause with only these left is dropped.
+filler: [make, makes, create, produce, build, a, an, the, for, to, of, with, and, or, it, its, this, that, is, be,
+         please, i, we, us, me, my, our, want, need, like, video, videos, film, clip, ad, advert, version, too, also,
+         add, use, using, in, on, at, by, from, as, so, just, one]
+
 # Things a prompt can say that this video cannot do. A sentence with one is not passed on as creative
 # direction, and the person is told. The note ends with the words found.
 not_used:

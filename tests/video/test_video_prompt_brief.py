@@ -167,7 +167,27 @@ def test_a_quoted_line_with_no_cue_is_not_a_call_to_action(folder):
 
 def test_the_rest_of_the_prompt_is_creative_direction(folder):
     result = read("A calm 30 second reel. Soft evening light and an unhurried pace, no rush at all.", folder)
-    assert result.brief.creative_direction == "A calm reel. Soft evening light and an unhurried pace, no rush at all."
+    assert result.brief.creative_direction == "Calm. Soft evening light and an unhurried pace, no rush at all."
+
+
+def test_what_the_rules_have_read_is_not_repeated_as_direction(folder):
+    prompt = ('Make a calm 30 second vertical reel for young families. Highlight the swimming pool, gym and clubhouse, '
+              'with warm acoustic music. End with "Book a site visit this weekend". Keep it elegant and unhurried, '
+              'golden evening light.')
+    result = read(prompt, folder)
+    assert result.brief.creative_direction == "Calm. Keep it elegant and unhurried, golden evening light."
+    assert (result.brief.duration_s, result.brief.aspect, result.brief.audience) == (30, "9:16", "young families")
+
+
+def test_a_prompt_the_rules_have_read_entirely_leaves_no_direction(folder):
+    for prompt in ("Make a 30 second vertical video for young families", "A 45 sec teaser to launch it",
+                   "A 10 second reel for investors, no captions, with calm music"):
+        assert read(prompt, folder).brief.creative_direction is None, prompt
+
+
+def test_a_clause_that_is_only_read_words_is_dropped_and_the_rest_kept(folder):
+    result = read("A square video for investors, with a dreamy look at dusk", folder)
+    assert result.brief.creative_direction == "Dreamy look at dusk."
 
 
 def test_what_the_video_cannot_do_is_named_and_kept_out_of_the_direction(folder):
@@ -236,7 +256,7 @@ def test_a_figure_the_property_has_is_allowed(folder):
 
 def test_a_sentence_with_a_price_is_not_passed_on_as_direction(folder):
     result = read("A calm reel for families. Priced at Rs 49 lakh, 20% off this week.", folder)
-    assert result.brief.creative_direction == "A calm reel for families."
+    assert result.brief.creative_direction == "Calm."
     assert any("Not used as creative direction" in n and "Rs 49 lakh" in n for n in result.notes)
 
 
@@ -505,8 +525,7 @@ def test_a_made_up_amenity_and_price_are_refused(folder):
                   'Priced at Rs 49 lakh, 20% off this week. CTA: "Call 99999 00000 now".', folder)
 
     assert prompt_brief.prompt_overrides(result) == {
-        "duration_s": 45, "objective": "launch", "highlights": ["Swimming pool", "Gymnasium"],
-        "creative_direction": "A teaser to launch it."}
+        "duration_s": 45, "objective": "launch", "highlights": ["Swimming pool", "Gymnasium"]}
     assert "'rooftop helipad' is not in this property's details; left out." in result.notes
     assert any("Rs 49 lakh" in n for n in result.notes)
     assert any("The call to action has a figure (00000)" in n for n in result.notes)

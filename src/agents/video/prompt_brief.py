@@ -251,21 +251,30 @@ def _audience(text: str, cfg: dict) -> Optional[str]:
     return by_lower[m.group(0).lower()] if m else None
 
 
-def _music(text: str, cfg: dict) -> Optional[str]:
+def _music_match(text: str, cfg: dict) -> Optional[tuple[str, int, int]]:
+    """(the mood words, where they start, where the noun ends) of a music request ("warm acoustic music")."""
     moods = {str(m).lower() for m in cfg["music_moods"]}
     for m in _phrases(cfg["music_nouns"]).finditer(text):
-        before = re.findall(r"[\w'-]+|&", text[:m.start()].lower())
+        before = list(re.finditer(r"[\w'-]+|&", text[:m.start()].lower()))[-4:]
         picked: list[str] = []
-        for word in reversed(before[-4:]):
+        start = m.start()
+        for token in reversed(before):
+            word = token.group(0)
             if word in moods:
                 picked.insert(0, word)
+                start = token.start()
             elif word in ("and", "&") and picked:
                 continue
             else:
                 break
         if picked:
-            return " ".join(picked)
+            return " ".join(picked), start, m.end()
     return None
+
+
+def _music(text: str, cfg: dict) -> Optional[str]:
+    match = _music_match(text, cfg)
+    return match[0] if match else None
 
 
 def _captions(text: str, cfg: dict) -> Optional[bool]:
@@ -313,32 +322,68 @@ def _vocabulary_items(text: str, cfg: dict, facts: _Facts) -> list[str]:
     return [t for t in facts.things if t in out]                      # the property's own order
 
 
+def _consumed(text: str, cfg: dict) -> list[tuple[int, int]]:
+    """Where the rules have already read something: a length, a shape, the audience, the objective's words,
+    the captions and the music request."""
+    spans = [(a, b) for a, b, _ in _length_matches(text, cfg)]
+    spans += [m.span() for word in (cfg["length"]["keywords"] or {}) for m in _phrases([word]).finditer(text)]
+    owner = {str(w).lower(): shape for shape, words in cfg["shape"].items() for w in words or []}
+    spans += [m.span() for m in _phrases(owner).finditer(text)]
+    spans += [m.span() for m in _phrases([str(a) for a in cfg["audience"]]).finditer(text)]
+    spans += [m.span() for words in cfg["objective"].values() if words for m in _phrases(words).finditer(text)]
+    spans += [m.span() for m in _phrases([*cfg["captions_off"], *cfg["captions_on"]]).finditer(text)]
+    music = _music_match(text, cfg)
+    if music:
+        spans.append((music[1], music[2]))
+    return spans
+
+
+def _residual(sentence: str, filler: set[str]) -> str:
+    """What a sentence still says once what the rules read is blanked out: each clause trimmed of the
+    little words at its ends, and a clause with nothing left dropped."""
+    def bare(word: str) -> str:
+        return word.strip(".,;:!?\"'()-\u201c\u201d").lower()
+
+    clauses = []
+    for clause in re.split(r"[,;:]", sentence):
+        words = clause.split()
+        while words and bare(words[0]) in filler:
+            words.pop(0)
+        while words and bare(words[-1]) in filler:
+            words.pop()
+        if words:
+            clauses.append(" ".join(words))
+    return ", ".join(clauses)
+
+
 def _direction(text: str, cfg: dict, cta: Optional[str], facts: _Facts, notes: list[str]) -> Optional[str]:
-    """The sentences that are left once the ones about a call to action, quoted lines and what the video
-    cannot do are taken out. A sentence with a figure that is not a fact (a price, a discount) is not passed
-    on either: direction steers the music, but it is not the place for a claim. The length the prompt names
-    does not count as a figure."""
+    """What is left of the prompt once the rules have read what they can: sentences about a call to action,
+    quoted lines, highlight lists and what the video cannot do are taken out, and from the others the words
+    the rules read (length, shape, audience, objective, captions, music) and the little words around them.
+    Nothing left: None. A sentence with a figure that is not a fact (a price, a discount) is not passed on
+    either: direction steers the music, but it is not the place for a claim. The length the prompt names does
+    not count as a figure."""
     not_used = _phrases([w for family in cfg["not_used"] for w in family["words"]])
     cues = _phrases(cfg["cta_cues"])
+    filler = {"", *(str(w).lower() for w in cfg["filler"])}
     masked = text
-    spans = [(a, b) for a, b, _ in _length_matches(text, cfg)]
-    spans += [m.span() for m in _phrases([*cfg["captions_off"], *cfg["captions_on"]]).finditer(text)]
-    for start, end in spans:
+    for start, end in _consumed(text, cfg):
         masked = masked[:start] + " " * (end - start) + masked[end:]
     kept, claims = [], []
     for sentence in (s.strip() for s in _SENTENCES.split(_QUOTED.sub(" ", masked))):
-        if (len(sentence.split()) < 3 or not_used.search(sentence) or _cue_items(sentence, cfg)
+        if (not sentence or not_used.search(sentence) or _cue_items(sentence, cfg)
                 or (cta and (cues.search(sentence) or cta.lower() in sentence.lower()))):
             continue
         if guard.unknown_figure(sentence, facts.figures, facts.words):
             claims.append(sentence.rstrip(".!? "))
-        else:
-            kept.append(re.sub(r"\s+", " ", sentence))
+            continue
+        left = _residual(sentence, filler).rstrip(".!? ")
+        if left:
+            kept.append(left[0].upper() + left[1:] + ".")
     if claims:
         notes.append(f"Not used as creative direction (a figure that is not in this property's facts): "
-                     f"'{_trim('; '.join(claims), 120)}'.")
-    direction = _trim(" ".join(kept), cfg["limits"]["creative_direction"])
-    return direction if len(direction.split()) >= 4 else None
+                     f"'{_trim('; '.join(re.sub(chr(32) + '+', chr(32), c) for c in claims), 120)}'.")
+    return _trim(" ".join(kept), cfg["limits"]["creative_direction"]) or None
 
 
 def _not_used(text: str, cfg: dict, cta: Optional[str]) -> list[str]:
@@ -536,6 +581,21 @@ def read_prompt(prompt: str, property_dir: Path, offline: bool = False, *,
     values["cta"] = _check_cta(values.get("cta"), facts, notes)
     values["pronunciations"] = values.get("pronunciations") or None
     return PromptBriefResult(PromptBrief(**values), list(dict.fromkeys(notes)), source)
+
+
+def max_prompt_chars() -> int:
+    """The longest prompt that is read (a longer one is cut, with a note)."""
+    return int(_config()["max_chars"])
+
+
+def length_of(prompt: str) -> Optional[int]:
+    """The length a prompt names, snapped to an offered one (rules only, no property needed)."""
+    return _length((prompt or "").strip()[:_config()["max_chars"]], _config(), [])
+
+
+def shape_of(prompt: str) -> Optional[str]:
+    """The shape a prompt names (rules only, no property needed)."""
+    return _shape((prompt or "").strip()[:_config()["max_chars"]], _config(), [])
 
 
 def prompt_overrides(result: PromptBriefResult) -> dict[str, Any]:

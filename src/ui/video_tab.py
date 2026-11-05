@@ -1,8 +1,9 @@
 """
 The Video tab of the Streamlit app (streamlit_app.py calls render_video_tab()).
 
-    pick a property -> fill the brief -> choose a motion model -> Make the plan
-    -> watch it -> read the storyboard -> Approve and produce -> watch it -> the video
+    write a prompt, pick a property -> send            (Plan off: the video is made without a stop)
+    or, with Plan on: fill the brief form -> send -> read the storyboard -> Approve and produce
+    -> watch it -> the video
 
 Everything the page does goes through src/workflows/video_jobs.py and the
 video repository: it starts a job, polls the database and never talks to the
@@ -35,8 +36,8 @@ from src.core.exceptions import IngestionError, JobBusyError, JobError
 from src.data import video_repository as repository
 from src.data.ingestion import discover_images
 from src.data.video_schemas import (
-    ACTIVE_STATUSES, STATUS_PLANNED, VIDEO_ASPECTS, VIDEO_DURATIONS, VIDEO_OBJECTIVES, Shot, VideoGenerationRecord,
-    VideoInput, VideoRequest, VideoSummary,
+    ACTIVE_STATUSES, STATUS_PLANNED, VIDEO_OBJECTIVES, Shot, VideoGenerationRecord, VideoInput, VideoRequest,
+    VideoSummary,
 )
 from src.models.video_gen import selector
 from src.workflows import video_jobs
@@ -213,13 +214,22 @@ def merge_defaults(folder: Path, overrides: dict) -> Path:
 
 # -- the motion model selector --------------------------------------------------------------------
 
+def money(usd: float) -> str:
+    """Dollars to the cent, a half rounded up (0.075 is 0.08; Python's own format gives 0.07)."""
+    return str(Decimal(str(usd)).quantize(Decimal("0.01"), ROUND_HALF_UP))
+
+
+def md(text: str) -> str:
+    """Text for a caption or a label: a dollar sign is escaped, or two of them in one line are read as maths."""
+    return text.replace("$", "\\$")
+
+
 def cost_text(option: selector.ProviderOption) -> str:
     if option.est_cost_usd is None:
         return "credit-based" if option.cost_basis == "credits" else "price not set"
     if option.est_cost_usd == 0:
         return "free"
-    dollars = Decimal(str(option.est_cost_usd)).quantize(Decimal("0.01"), ROUND_HALF_UP)   # 0.075 is 0.08, not 0.07
-    return f"{'from ' if option.price_from else ''}about ${dollars}"
+    return f"{'from ' if option.price_from else ''}about ${money(option.est_cost_usd)}"
 
 
 def why_not(option: selector.ProviderOption) -> str:
@@ -344,12 +354,12 @@ def _goto(video_id: Optional[str]) -> None:
         del st.query_params[VIDEO_QUERY]
 
 
-def _open(video_id: Optional[str]) -> None:
+def open_video(video_id: Optional[str]) -> None:
     _goto(video_id)
     st.rerun()
 
 
-def _busy_notice(error: JobBusyError) -> None:
+def busy_notice(error: JobBusyError) -> None:
     """Another video is being made: say which, where it is, and offer to open it."""
     running = repository.list_by_status(*ACTIVE, limit=1)
     if not running:
@@ -362,21 +372,16 @@ def _busy_notice(error: JobBusyError) -> None:
     st.button("Open it", key=f"vt_open_{job.video_id}", on_click=_goto, args=(job.video_id,))
 
 
-# -- the new video form --------------------------------------------------------------------------------
+# -- the new video: the prompt box (video_box.py), and this form under it when Plan is on -----------------
 
-def _new_video() -> None:
-    choices = property_choices()
-    if not choices:
-        st.info("There is no property to make a video of yet. Add one with the Brochure form first; "
-                "its photographs and details are what the video is made from.")
-        return
-    labels = dict(choices)
-    property_id = st.selectbox("Property", list(labels), format_func=labels.get, key="vt_property")
-    folder = properties_dir() / property_id
-    defaults, notes = form_defaults(folder)
-    for note in notes:
-        st.warning(note)
+FORM_FIELDS = ("objective", "audience", "highlights", "cta", "creative_direction", "tone", "voice", "music_mood",
+               "hero_image", "burn_captions", "grade", "allow_generated", "pronunciations")
 
+
+def render_form(property_id: str, folder: Path, defaults: dict) -> dict:
+    """The brief form: everything the toolbar does not cover (it has the property, the length, the shape,
+    the model, offline and draft). Starts from `defaults` (form_defaults of the property's folder). Returns
+    the entries by FORM_FIELDS, `highlights` and `pronunciations` as the text areas' text."""
     def key(field: str) -> str:
         return form_key(property_id, field)
 
@@ -386,17 +391,8 @@ def _new_video() -> None:
 
     with st.container(border=True):
         st.subheader("The video")
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            duration = pick(list(VIDEO_DURATIONS), defaults["duration_s"], "duration_s", label="Length",
-                            format_func=lambda s: f"{s} seconds")
-        with c2:
-            aspect = pick(list(VIDEO_ASPECTS), defaults["aspect"], "aspect", label="Shape")
-        with c3:
-            objective = pick(list(VIDEO_OBJECTIVES), defaults["objective"], "objective", label="What it is for",
-                             format_func=lambda o: o.replace("_", " ").capitalize())
-        if duration > 15:
-            st.caption("Videos over 15 seconds have a script plan but have not been rendered and checked yet.")
+        objective = pick(list(VIDEO_OBJECTIVES), defaults["objective"], "objective", label="What it is for",
+                         format_func=lambda o: o.replace("_", " ").capitalize())
         audience = st.text_input("Who is it for?", defaults["audience"], key=key("audience"),
                                  placeholder="e.g. young families and first-time buyers")
         highlights = st.text_area("Key highlights to feature (one per line)", defaults["highlights"],
@@ -404,8 +400,8 @@ def _new_video() -> None:
                                   help="Only amenities and facts the property has, and that a photograph shows, are said.")
         cta = st.text_input("Call to action", defaults["cta"], key=key("cta"),
                             placeholder="e.g. Book a site visit this weekend (blank: chosen from what it is for)")
-        direction = st.text_area("Creative direction", defaults["creative_direction"], key=key("creative_direction"), height=70,
-                                 placeholder="e.g. calm and premium, evening light")
+        direction = st.text_area("Creative direction", defaults["creative_direction"], key=key("creative_direction"),
+                                 height=70, placeholder="e.g. calm and premium, evening light")
 
     with st.container(border=True):
         st.subheader("Look and sound")
@@ -433,58 +429,16 @@ def _new_video() -> None:
         _, bad = parse_pronunciations(pronunciations)
         if bad:
             st.warning("These pronunciation lines are not 'word=respelling' and will be left out: " + "; ".join(bad))
+    return {"objective": objective, "audience": audience, "highlights": highlights, "cta": cta,
+            "creative_direction": direction, "tone": tone, "voice": voice, "music_mood": music_mood,
+            "hero_image": hero, "burn_captions": burn, "grade": grade, "allow_generated": generated,
+            "pronunciations": pronunciations}
 
-    with st.container(border=True):
-        st.subheader("Motion")
-        offline_on = st.session_state.get(key("offline"), False)
-        options = selector.options(duration)
-        usable = [o for o in options if o.available]
-        by_id = {o.id: o for o in usable}
-        wanted = defaults["model"] if defaults["model"] in by_id else selector.AUTO
-        model = st.radio("How the pictures move", [o.id for o in usable], index=[o.id for o in usable].index(wanted),
-                         format_func=lambda i: option_label(by_id[i]), key=key("model"), disabled=offline_on)
-        unavailable = [o for o in options if not o.available]
-        if unavailable:
-            st.markdown("**Not available yet**")
-            for option in unavailable:
-                st.caption(unavailable_row(option))
-        st.caption("A shot a model cannot make is made by pan-and-zoom, which is free.")
 
-    with st.container(border=True):
-        st.subheader("How to run it")
-        c1, c2 = st.columns(2)
-        offline = c1.checkbox("Offline (no models, no cost)", False, key=key("offline"),
-                              help="Every step takes its built-in fallback: a voice on this machine, pan-and-zoom, no music "
-                                   "from a service. Nothing leaves this computer.")
-        draft = c2.checkbox("Draft quality (fast)", False, key=key("draft"),
-                            help="Small and quick, to look at a plan before spending the time on the full size.")
+def _new_video() -> None:
+    from src.ui import video_box              # the box imports this module for the form and the helpers
 
-    values = {"duration_s": duration, "aspect": aspect, "audience": audience, "objective": objective,
-              "highlights": highlights, "tone": tone, "voice": voice, "music_mood": music_mood, "cta": cta,
-              "creative_direction": direction, "hero_image": hero, "burn_captions": burn, "grade": grade,
-              "allow_generated": generated, "pronunciations": pronunciations, "model": model}
-    overrides = build_overrides(values)
-
-    save_clicked = st.button("Save as this property's defaults", key="vt_save",
-                             help=f"Writes these choices to {brief_agent.VIDEO_INPUT_FILE} in the property's folder, "
-                                  "keeping anything else in it.")
-    start_clicked = st.button("Make the plan", type="primary", key="vt_start")
-    if save_clicked:
-        try:
-            path = merge_defaults(folder, overrides)
-        except IngestionError as exc:
-            st.error(str(exc))
-        else:
-            st.success(f"Saved to {path.name} in the {property_id} folder.")
-    if start_clicked:
-        try:
-            video_id = video_jobs.start_plan(property_id, overrides, offline=offline, draft=draft)
-        except JobBusyError as exc:
-            _busy_notice(exc)
-        except JobError as exc:
-            st.error(str(exc))
-        else:
-            _open(video_id)
+    video_box.render_new_video()
 
 
 # -- one video: progress, approval, result ---------------------------------------------------------------
@@ -568,7 +522,7 @@ def _approval(video_id: str) -> None:
         try:
             video_jobs.start_produce(video_id)
         except JobBusyError as exc:
-            _busy_notice(exc)
+            busy_notice(exc)
         except JobError as exc:
             st.error(str(exc))
         else:
@@ -578,13 +532,15 @@ def _approval(video_id: str) -> None:
         request = record.request or VideoRequest(property_id=record.property_id)
         try:
             new_id = video_jobs.start_plan(request.property_id, request.overrides, offline=request.offline,
-                                           draft=request.draft, refresh_ledger=request.refresh_ledger)
+                                           draft=request.draft, refresh_ledger=request.refresh_ledger,
+                                           prompt=request.prompt, brief_source=request.brief_source,
+                                           brief_notes=request.brief_notes)
         except JobBusyError as exc:
-            _busy_notice(exc)
+            busy_notice(exc)
         except JobError as exc:
             st.error(str(exc))
         else:
-            _open(new_id)
+            open_video(new_id)
 
 
 def _failure(video_id: str, summary: VideoSummary) -> None:
@@ -618,6 +574,24 @@ def _result(video_id: str, summary: VideoSummary) -> None:
     st.caption("Evaluation and history come next.")
 
 
+SOURCE_WORDS = {"model": "Read by the model, then checked against the property's facts.",
+                "rules": "Read by built-in rules (the model was not used)."}
+
+
+def _prompt_panel(video_id: str) -> None:
+    """The prompt this video was made from, how it was read, and what was left out or not used."""
+    record = repository.get_generation(video_id)
+    request = record.request if record else None
+    if request is None or not request.prompt.strip():
+        return
+    with st.expander("Your prompt"):
+        st.text(request.prompt)
+        if request.brief_source:
+            st.caption(SOURCE_WORDS.get(request.brief_source, request.brief_source))
+        for note in request.brief_notes:
+            st.write(f"- {note}")
+
+
 def _video(video_id: str) -> None:
     st.button("← New video", key="vt_new", on_click=_goto, args=(None,))
     summary = video_jobs.status(video_id)
@@ -625,6 +599,7 @@ def _video(video_id: str) -> None:
         st.warning(f"There is no video {video_id}.")
         return
     st.caption(f"{summary.property_id} · {summary.video_id}")
+    _prompt_panel(video_id)
     if summary.status in ACTIVE:
         _watch(video_id)
     elif summary.status == STATUS_PLANNED:
@@ -637,7 +612,7 @@ def _video(video_id: str) -> None:
 
 def render_video_tab() -> None:
     st.caption("A short promotional video made from a property's own photographs, with narration, captions and "
-               "music. You read the plan before anything is produced.")
+               "music. Turn Plan on to read the brief and the storyboard before anything is produced.")
     video_id = st.query_params.get(VIDEO_QUERY)
     if video_id:
         _video(video_id)
