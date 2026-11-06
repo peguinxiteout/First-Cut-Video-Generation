@@ -232,13 +232,48 @@ def _objective(text: str, cfg: dict) -> Optional[str]:
     return ranked[0] if ranked else None
 
 
+def _tone_families(cfg: dict) -> dict[str, list]:
+    return {name: [name, *((cfg["tone_synonyms"] or {}).get(name) or [])] for name in _tones()}
+
+
+def _clause_words(tokens: list[str], limit: int) -> list[str]:
+    """Up to `limit` words from the start of `tokens`, stopping at punctuation."""
+    words: list[str] = []
+    for token in tokens:
+        if token in ",.;:!?":
+            break
+        words.append(token)
+        if len(words) == limit:
+            break
+    return words
+
+
+def _tone_hits(text: str, words: list, cfg: dict) -> tuple[list[int], list[int]]:
+    """(where the words of a tone count, where they sit beside a word about light or colour). Tone is the voice and
+    register of the narration: "warm natural lighting" and "cool tones" say nothing about it. A word is beside one
+    when it is within two words after it, or two words before it, in the same clause."""
+    blockers = {str(b).lower() for b in cfg["tone_blockers"]}
+    counted: list[int] = []
+    beside: list[int] = []
+    for m in _phrases(words).finditer(text):
+        after = re.findall(r"[\w'-]+|[,.;:!?]", text[m.end():m.end() + 80].lower())
+        before = re.findall(r"[\w'-]+|[,.;:!?]", text[max(0, m.start() - 80):m.start()].lower())[::-1]
+        near = _clause_words(after, 2) + _clause_words(before, 2)
+        (beside if blockers & set(near) else counted).append(m.start())
+    return counted, beside
+
+
 def _tone(text: str, cfg: dict) -> Optional[str]:
-    tones = _tones()
-    families = {name: [name, *((cfg["tone_synonyms"] or {}).get(name) or [])] for name in tones}
-    counts = {name: len(_phrases(words).findall(text)) for name, words in families.items()}
-    first = dict(_first_of(families, text))
-    ranked = sorted((n for n, c in counts.items() if c), key=lambda n: (-counts[n], first[n]))
+    hits = {name: _tone_hits(text, words, cfg)[0] for name, words in _tone_families(cfg).items()}
+    ranked = sorted((n for n, h in hits.items() if h), key=lambda n: (-len(hits[n]), hits[n][0]))
     return ranked[0] if ranked else None
+
+
+def _tone_rests_on_light(text: str, tone: str, cfg: dict) -> bool:
+    """Whether the prompt's only mentions of a tone's words are beside words about light or colour. A tone the
+    prompt does not mention at all is not that: a model may have read it from elsewhere."""
+    counted, beside = _tone_hits(text, _tone_families(cfg).get(tone, []), cfg)
+    return bool(beside) and not counted
 
 
 def _tones() -> list[str]:
@@ -456,8 +491,31 @@ def _text(value: Any, limit: int) -> Optional[str]:
     return _trim(value, limit) or None if isinstance(value, str) else None
 
 
-def _model_values(raw: Any, cfg: dict, notes: list[str]) -> dict[str, Any]:
-    """The values of a model's answer that are usable; each unusable one is left out and named."""
+def _clean_direction(direction: str, cfg: dict, notes: list[str]) -> Optional[str]:
+    """The model's creative direction through the rules' filter: a sentence about camera moves, resolution or render
+    quality, scene descriptions or on-screen text, or with a quoted line, is dropped, and said so unless the prompt's
+    own notes already say it. Nothing left: None (the rules' direction stands)."""
+    families = [(f, _phrases(f["words"])) for f in cfg["not_used"]]
+    kept = []
+    for sentence in (s.strip() for s in _SENTENCES.split(direction)):
+        found = [(f, [m.group(0) for m in pattern.finditer(sentence)]) for f, pattern in families]
+        found = [(f, words) for f, words in found if words]
+        quoted = bool(_QUOTED.search(sentence))
+        if found or quoted:
+            for family, words in found:
+                if not any(n.startswith(family["note"]) for n in notes):
+                    notes.append(f"{family['note']} (found: {_words(words)}).")
+            if quoted and not any(n.startswith("Quoted lines are not printed") for n in notes):
+                notes.append("Quoted lines are not printed: the video's words are written from the property's "
+                             "facts; only a call to action is taken from a prompt.")
+        elif sentence:
+            kept.append(sentence)
+    return " ".join(kept) or None
+
+
+def _model_values(raw: Any, cfg: dict, notes: list[str], text: str = "") -> dict[str, Any]:
+    """The values of a model's answer that are usable; each unusable one is left out and named. `text` is the
+    prompt, for the checks that need it (a tone, a direction)."""
     if not isinstance(raw, dict):
         notes.append("The model's answer was not a JSON object; the rules were used.")
         return {}
@@ -478,11 +536,17 @@ def _model_values(raw: Any, cfg: dict, notes: list[str]) -> dict[str, Any]:
         values["tone"] = clean if clean in _tones() else None
         if values["tone"] is None:
             refuse("tone", f"('{tone}') is not one of {', '.join(_tones())}")
+        elif _tone_rests_on_light(text, clean, cfg):
+            values["tone"] = None
+            refuse("tone", f"('{clean}') rests only on a word about light or colour in the prompt, and tone is the "
+                           "voice of the narration")
     for key in ("audience", "cta", "music_mood", "creative_direction"):
         if raw.get(key) is not None:
             values[key] = _text(raw[key], limits[key])
             if values[key] is None:
                 refuse(key)
+            elif key == "creative_direction":
+                values[key] = _clean_direction(values[key], cfg, notes)
     highlights = raw.get("highlights")
     if highlights is not None:
         if isinstance(highlights, list) and all(isinstance(h, str) for h in highlights):
@@ -592,7 +656,7 @@ def read_prompt(prompt: str, property_dir: Path, offline: bool = False, *,
             logger.warning("The model was not used for the prompt (%s: %s)", type(exc).__name__, blocker)
         else:
             source = SOURCE_MODEL
-            values.update(_model_values(answer, cfg, notes))
+            values.update(_model_values(answer, cfg, notes, text))
     if source == SOURCE_RULES:
         notes.append("The prompt is empty." if not text else
                      f"The model was not used ({blocker}); the prompt was read with built-in rules.")

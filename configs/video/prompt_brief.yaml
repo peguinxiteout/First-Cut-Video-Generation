@@ -50,8 +50,12 @@ prompt: |
     "cta": the call to action, only if the request gives its wording, in the request's own
            words. No number that is not in the request.
     "creative_direction": one or two sentences on style, mood, pace and light that the
-                          request asks for. No facts, prices, numbers or technical settings.
-    "tone": one of the allowed tones, only if the request states a feel that matches one.
+                          request asks for. No facts, prices, numbers or technical settings, and no camera moves, resolution
+                          or render-quality words, scene descriptions or on-screen text: the tool decides those.
+    "tone": one of the allowed tones, only if the request states how the narration should sound
+            or feel: its voice and register. Tone is not lighting, colour or palette: "warm natural
+            lighting" or "cool tones" do not make the tone warm or cool. Null if the request says nothing
+            about how it should sound.
     "music_mood": a few words on the music the request asks for.
     "burn_captions": false if the request asks for no captions or subtitles on screen, true if
                      it asks for them, else null.
@@ -84,8 +88,12 @@ objective:
 # script_templates.yaml is ignored.
 tone_synonyms:
   warm: [friendly, homely, welcoming, cosy, cozy, heartwarming]
-  confident: [bold, energetic, dynamic, punchy, upbeat, modern]
-  refined: [elegant, luxurious, luxury, sophisticated, classy, premium]
+  confident: [bold, energetic, dynamic, punchy, upbeat]
+  refined: [elegant, luxurious, luxury, sophisticated, classy, premium, high-end, high end]
+
+# A tone word within two words of one of these, in the same clause, is about light or colour, not about the voice
+# of the narration, and does not count ("warm natural lighting", "soft warm light", "cool tones").
+tone_blockers: [lighting, light, lights, lit, colour, colours, color, colors, palette, palettes, tones, hue, hues]
 
 audience: [young families, first-time buyers, first time buyers, young professionals, working professionals,
            senior citizens, families, investors, NRIs, retirees, seniors, couples, students]
@@ -136,10 +144,12 @@ filler: [make, makes, create, produce, build, a, an, the, for, to, of, with, and
 not_used:
   - name: camera
     words: [dolly, pan left, pan right, pan, tilt, tilt up, tilt down, zoom in, zoom out, zoom, drone, crane,
-            tracking shot, orbit, fpv, camera, motion, reveal, sweeping, aerial]
+            tracking shot, orbit, fpv, camera, motion, reveal, sweeping, aerial, panning, tilting, zooming, gliding,
+            flying, flyover, fly-through, low-angle, low angle]
     note: "Camera moves in the prompt are not used: the video's own pan-and-zoom decides them"
   - name: quality
-    words: [8k, 4k, 1080p, ultra-detailed, ultra detailed, photorealistic, high resolution, hdr]
+    words: [8k, 4k, 1080p, ultra-detailed, ultra detailed, photorealistic, ultra-realistic, ultra realistic,
+            hyper-realistic, rendering style, high resolution, hdr]
     note: "Resolution and render-quality words are not used: the video size comes from the shape"
   - name: scene
     words: [text overlay, motion controls, add in post, "prompt:", scene, fade-out, fade out]

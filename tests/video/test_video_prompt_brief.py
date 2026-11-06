@@ -554,7 +554,7 @@ def test_a_medeo_style_prompt_is_mostly_not_used_and_says_so(folder):
 
     assert prompt_brief.prompt_overrides(result) == {"tone": "refined"}        # "luxurious" is all it states
     families = " ".join(result.notes)
-    for expected in ("Camera moves in the prompt are not used", "dolly", "Resolution and render-quality words",
+    for expected in ("Camera moves in the prompt are not used", "drone", "Resolution and render-quality words",
                      "8k", "Scene descriptions and on-screen text are not used", "Quoted lines are not printed (2)"):
         assert expected in families, expected
 
@@ -568,3 +568,118 @@ def test_a_made_up_amenity_and_price_are_refused(folder):
     assert "'rooftop helipad' is not in this property's details; left out." in result.notes
     assert any("Rs 49 lakh" in n for n in result.notes)
     assert any("The call to action has a figure (00000)" in n for n in result.notes)
+
+
+# -- the prompt of vid_d1e7a507d0 (brigade-citrine, read by Gemini on 5 Nov 2026) ------------------------------------
+
+RUN_PROMPT = (
+    "Cinematic real estate tour of a luxury high-rise development: Begin with an aerial establishing shot of the "
+    "residential towers at dusk, gliding down to the sleek tower drop-off entrance. Transition into the contemporary "
+    "apartment interior-panning smoothly across the sunlit living room and open dining area overlooking the balcony "
+    "skyline, followed by the modern sage-green kitchen. Cut to outdoor amenities featuring landscaped gardens, an "
+    "open-air fitness area, and multi-sport courts, finishing on a dynamic low-angle shot of the illuminated towers "
+    "against the evening sky. Smooth drone-style camera movements, warm natural lighting, ultra-realistic "
+    "architectural rendering style.")
+RUN_DIRECTION = ("Cinematic real estate tour featuring smooth drone-style camera movements and warm natural lighting "
+                 "in an ultra-realistic architectural rendering style.")
+
+
+def test_the_run_prompt_is_read_as_refined_with_no_direction_and_no_noise(folder):
+    result = read(RUN_PROMPT, folder)
+
+    assert result.brief.tone == "refined"                    # "luxury" is the one word about the narration; "warm" is light
+    assert result.brief.objective == "site_visit"            # "tour"
+    assert result.brief.creative_direction is None           # every sentence is a camera move, a scene or a render style
+    assert result.brief.duration_s is None and result.brief.aspect is None
+    assert not any("finishing" in n for n in result.notes)
+    assert any(n.startswith("Camera moves in the prompt are not used") for n in result.notes)
+    assert any(n.startswith("Resolution and render-quality words are not used") and "ultra-realistic" in n
+               for n in result.notes)
+
+
+@pytest.mark.parametrize("prompt", [
+    "warm natural lighting", "soft warm light over the towers", "a warm colour palette", "warm tones throughout",
+    "the light is warm", "golden, warm lights", "cozy lit interiors", "bold colours", "elegant colour palette"])
+def test_a_tone_word_beside_light_or_colour_does_not_set_the_tone(prompt, folder):
+    assert read(prompt, folder).brief.tone is None
+
+
+@pytest.mark.parametrize("prompt,tone", [
+    ("a warm, welcoming video", "warm"), ("a warm voice with soft lighting", "warm"),
+    ("warm narration. Soft lighting", "warm"), ("a friendly tone of voice", "warm"),
+    ("a bold, confident read", "confident"), ("dynamic and upbeat", "confident")])
+def test_a_tone_word_about_the_voice_still_counts(prompt, tone, folder):
+    assert read(prompt, folder).brief.tone == tone
+
+
+def test_the_light_words_do_not_decide_between_two_tones(folder):
+    assert read("warm natural lighting, an elegant read", folder).brief.tone == "refined"
+
+
+@pytest.mark.parametrize("prompt", ["a luxury apartment film", "luxurious living", "a premium launch",
+                                    "a high-end development", "a high end project", "elegant homes"])
+def test_luxury_premium_and_high_end_read_as_refined(prompt, folder):
+    assert read(prompt, folder).brief.tone == "refined"
+
+
+def test_modern_alone_is_not_a_tone(folder):
+    assert read("a modern high-rise with modern interiors", folder).brief.tone is None
+    assert read("modern and dynamic", folder).brief.tone == "confident"                  # "dynamic" is
+
+
+def test_the_model_is_told_that_tone_is_the_voice_and_not_the_light(folder, model):
+    answers(model)
+    prompt_brief.read_prompt("A calm reel", folder)
+    sent = model.calls[0][2]
+    assert "Tone is not lighting, colour or palette" in sent and '"warm natural' in sent
+    assert "no camera moves, resolution" in sent
+
+
+def test_a_model_tone_that_rests_only_on_a_word_about_light_is_left_out(folder, model):
+    answers(model, tone="warm", creative_direction=RUN_DIRECTION)
+    result = prompt_brief.read_prompt(RUN_PROMPT, folder)
+
+    assert result.source == "model" and result.brief.tone == "refined"                     # the rules' tone stands
+    assert ("The model's tone ('warm') rests only on a word about light or colour in the prompt, and tone is the "
+            "voice of the narration; left out.") in result.notes
+
+
+def test_a_model_tone_the_prompt_never_mentions_is_taken(folder, model):
+    answers(model, tone="refined")
+    assert prompt_brief.read_prompt("Book a visit to the new tower", folder).brief.tone == "refined"
+    answers(model, tone="warm")
+    assert prompt_brief.read_prompt("A friendly video. Lit by warm lights", folder).brief.tone == "warm"   # "friendly" counts
+
+
+def test_the_models_direction_goes_through_the_same_filter_as_the_rules(folder, model):
+    answers(model, tone="warm", creative_direction=RUN_DIRECTION)
+    result = prompt_brief.read_prompt(RUN_PROMPT, folder)
+
+    assert result.brief.creative_direction is None                                   # nothing of it is usable
+    assert not any("drone" in str(v) for v in prompt_brief.prompt_overrides(result).values())
+    notes = [n for n in result.notes if n.startswith(("Camera moves", "Resolution and render-quality"))]
+    assert len(notes) == len(set(notes)) and len(notes) == 2                         # said once each, not twice
+
+
+def test_a_sentence_of_the_models_direction_that_is_style_is_kept(folder, model):
+    answers(model, creative_direction="Unhurried, golden evening glow. Slow drone shots over the towers in 8k. "
+                                      'Overlay "Where Nature Meets Luxury" on the first shot.')
+    result = prompt_brief.read_prompt("A calm reel", folder)
+
+    assert result.brief.creative_direction == "Unhurried, golden evening glow."
+    assert any(n.startswith("Camera moves") and "drone" in n for n in result.notes)
+    assert any(n.startswith("Resolution and render-quality") and "8k" in n for n in result.notes)
+    assert any(n.startswith("Quoted lines are not printed") for n in result.notes)
+
+
+def test_when_the_models_direction_is_all_filtered_the_rules_direction_stands(folder, model):
+    answers(model, creative_direction="Smooth drone-style camera movements at 8k.")
+    result = prompt_brief.read_prompt("A soft evening mood with an unhurried pace, for investors", folder)
+    assert result.brief.creative_direction == "Soft evening mood with an unhurried pace."
+
+
+def test_a_clean_model_direction_is_unchanged_and_adds_no_note(folder, model):
+    answers(model, creative_direction="Unhurried and calm, with soft evening light.")
+    result = prompt_brief.read_prompt("A calm reel", folder)
+    assert result.brief.creative_direction == "Unhurried and calm, with soft evening light."
+    assert not [n for n in result.notes if "not used" in n or "not printed" in n]
