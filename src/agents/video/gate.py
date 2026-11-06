@@ -377,6 +377,35 @@ def check_narration_picture(script: VideoScript, board: Storyboard, cfg: dict) -
                   "shown by a photograph under its line" if checked else "no spoken line names an amenity")
 
 
+def check_narration_evidence(script: VideoScript, board: Storyboard) -> GateCheck:
+    """An audit of the plan, from the stored shots: each amenity a spoken line names, and each chip, is
+    over a photograph whose tags AND caption both say it (photo_tags.evidence). The planner only picks
+    such photographs, so this warns for a plan made another way: an older one, or one a person edited."""
+    real = [s for s in board.shots if s.kind == "real"]
+    if not any(s.tags for s in real):
+        return _check("narration_evidence", "skipped", "the photographs carry no tags to check the narration against")
+    said = {s.index: set(photo_tags.from_caption(s.caption)) for s in real}
+    weak: list[str] = []
+    checked = 0
+    for index, line in enumerate(script.lines):
+        for name in sorted(photo_tags.needs(line.text)):
+            under = [s for s in real if index in s.line_ids]
+            checked += 1
+            if under and not any(name in s.tags and name in said[s.index] for s in under):
+                weak.append(f"line {index + 1} names {name}")
+    for shot in real:
+        for text in shot.overlay_text:
+            for name in sorted(photo_tags.needs(text)) if text in script.chips else []:
+                checked += 1
+                if not (name in shot.tags and name in said[shot.index]):
+                    weak.append(f"the chip '{text}' (shot {shot.index + 1})")
+    if weak:
+        return _check("narration_evidence", "warn", f"{len(weak)} of {checked} amenity mention(s) are over a photograph "
+                      "whose tags and caption do not both say it: " + "; ".join(weak[:4]), weak=len(weak))
+    return _check("narration_evidence", "pass", f"every one of the {checked} amenity mention(s) is over a photograph "
+                  "whose tags and caption both say it" if checked else "no line or chip names an amenity")
+
+
 def check_repeated_photo(board: Storyboard, cfg: dict) -> GateCheck:
     repeats = [(a, b) for a, b in zip(board.shots, board.shots[1:])
                if a.kind == "real" and b.kind == "real" and a.image_id and a.image_id == b.image_id]
@@ -453,6 +482,7 @@ def evaluate(inputs: GateInputs, measurements: Optional[VideoMeasurements] = Non
               ("chips", lambda: check_chips(inputs.storyboard, inputs.script)),
               ("narration_picture", lambda: check_narration_picture(inputs.script, inputs.storyboard,
                                                                     cfg["narration_picture"])),
+              ("narration_evidence", lambda: check_narration_evidence(inputs.script, inputs.storyboard)),
               ("repeated_photo", lambda: check_repeated_photo(inputs.storyboard, cfg["repeated_photo"]))]
     for name, step in steps:
         try:

@@ -265,6 +265,37 @@ def _label(feature: Feature) -> str:
     return "'" + (feature.text or feature.item_list or feature.chip).rstrip(".") + "'"
 
 
+def _weak_photos(units, usable: list[RankedAsset]) -> list[str]:
+    """The photographs the model tagged with an amenity of these units and whose caption does not say it
+    (see photo_tags.evidence): in the frame, perhaps, but not clearly enough to show a viewer."""
+    wanted = {name for unit in units for name in photo_tags.needs(unit)}
+    return [a.filename for a in usable if wanted & set(a.weak_tags)]
+
+
+def _weak_pairs(units, usable: list[RankedAsset]) -> list[str]:
+    """"amenity (file)" for each amenity of these units that a photograph is tagged with and its caption does not say."""
+    out: list[str] = []
+    for unit in units:
+        for name in sorted(photo_tags.needs(unit)):
+            out += [f"{name} ({a.filename})" for a in usable if name in a.weak_tags and f"{name} ({a.filename})" not in out]
+    return out
+
+
+def _not_clear(weak: list[str]) -> str:
+    if len(weak) == 1:
+        return f"the only photograph tagged with it ({weak[0]}) does not show it clearly"
+    return f"the photographs tagged with it ({', '.join(weak)}) do not show it clearly"
+
+
+def _left_out(feature: Feature, usable: list[RankedAsset]) -> str:
+    """Why an amenity feature has no line: no photograph shows it, or only a photograph tagged with it
+    whose caption does not say it."""
+    weak = _weak_photos(feature.units, usable)
+    if not weak:
+        return f"Left out of the script: {_label(feature)}. No photograph shows it."
+    return f"{_label(feature)[1:-1]} left out: {_not_clear(weak)}."
+
+
 def check(script: VideoScript, max_hook_words: int) -> list[str]:
     """The script's own sanity checks: problems, in words, or []."""
     if not script.lines:
@@ -304,7 +335,7 @@ def run(prop: PropertyInput, brief: VideoBrief, knowledge: PropertyKnowledge,
     w = _Writer(prop, brief, knowledge)
     max_hook = w.pacing["max_hook_words"]
     usable = [a for a in (assets or []) if a.usable]
-    tagged = any(a.tags for a in usable)              # read by a vision model: follow the photographs
+    tagged = any(a.read_by_vision for a in usable)    # read by a vision model: follow the photographs
     pending = w.features({a.topic for a in usable})
     objective = brief.objective
 
@@ -321,7 +352,7 @@ def run(prop: PropertyInput, brief: VideoBrief, knowledge: PropertyKnowledge,
             elif best_fit(feature, free):
                 backed.append(feature)
             else:
-                w.notes.append(f"Left out of the script: {_label(feature)}. No photograph shows it.")
+                w.notes.append(_left_out(feature, usable))
         pending = backed + general                    # what a picture shows first, then the rest
 
     kept: list[tuple[ScriptLine, Optional[Feature]]] = []
@@ -337,6 +368,9 @@ def run(prop: PropertyInput, brief: VideoBrief, knowledge: PropertyKnowledge,
                                    "The pictures that show it are used by other lines.")
                     continue
                 feature, trim = _said(feature, fit)
+                weak = _weak_pairs(fit.dropped, usable) if trim else []
+                if weak:
+                    trim = f"{trim} Tagged with it but not shown clearly: {'; '.join(weak)}."
             line = w.feature_line(feature)
             if line:
                 if fit is not None:

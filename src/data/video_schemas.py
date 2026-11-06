@@ -208,6 +208,8 @@ class RankedAsset(BaseModel):
     topic: str = ""                       # what it shows, a key of brochure/topics.py (pool, exterior, ...)
     caption: str = ""                     # what is visible, in a sentence (empty without a vision reading)
     tags: list[str] = Field(default_factory=list)   # what is clearly visible, as photo_tags names (empty without vision)
+    # Amenities the model tagged that the caption does not say: not evidence for a line or a chip.
+    weak_tags: list[str] = Field(default_factory=list)
     cluster: int = -1                     # pictures that look alike share one (image_plan)
     duplicate_of: str = ""                # the better picture of its cluster, when this is not it
     usable: bool = True
@@ -216,6 +218,11 @@ class RankedAsset(BaseModel):
     @property
     def aspect(self) -> float:
         return self.width / self.height if self.height else 1.0
+
+    @property
+    def read_by_vision(self) -> bool:
+        """The picture was read by a vision model (it has tags, whether or not a caption backs them)."""
+        return bool(self.tags or self.weak_tags)
 
 
 class ScriptLine(BaseModel):

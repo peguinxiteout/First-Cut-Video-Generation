@@ -179,7 +179,7 @@ def run(brief: VideoBrief, script: VideoScript, assets: list[RankedAsset],
     end_card_s, notes = pacing["end_card_s"], []
     usable = [a for a in assets if a.usable]                      # best first
     by_id = {a.image_id: a for a in usable}
-    tagged = any(a.tags for a in usable)                          # read by a vision model
+    tagged = any(a.read_by_vision for a in usable)                # read by a vision model
     desired = brief.n_shots - 1
     allowance = pacing["max_reuse_per_photo"]
     count = 1 if not usable else min(desired, len(usable) + min(len(usable) * allowance, len(usable) - 1))
@@ -262,7 +262,7 @@ def run(brief: VideoBrief, script: VideoScript, assets: list[RankedAsset],
             if not any(set(l.tags) & set(asset.tags) for l in needed):
                 notes.append(f"Shot {n} plays '{needed[0].text}' over {asset.filename}, which shows "
                              f"{', '.join(asset.tags) or 'nothing tagged'}, not {', '.join(needed[0].tags)}.")
-        elif wanted and wanted != "exterior" and asset is not None and not (tagged and asset.tags):
+        elif wanted and wanted != "exterior" and asset is not None and not (tagged and asset.read_by_vision):
             asked += 1
             matched += asset.topic == wanted
 
@@ -273,14 +273,18 @@ def run(brief: VideoBrief, script: VideoScript, assets: list[RankedAsset],
             topic = script.lines[line_index].topic
             if line_index not in line_ids or chip in shown_chips or asset is None:
                 continue
-            if asset.tags:                       # read by a vision model: the chip's tag must be among the picture's
+            if asset.read_by_vision:             # read by a vision model: the chip's tag must be among the picture's
                 if photo_tags.supports(chip, asset.tags):
                     overlay.append(chip)
                     shown_chips.add(chip)
                 else:
                     named = sorted(photo_tags.needs(chip))
-                    chip_why.setdefault(chip, f"{asset.filename} (the picture under its line) shows "
-                                              f"{', '.join(asset.tags)}, not {', '.join(named) if named else 'what it names'}")
+                    if set(named) & set(asset.weak_tags):
+                        chip_why.setdefault(chip, f"{asset.filename} (the picture under its line) is tagged with it "
+                                                  "but its caption does not say it, so it does not show it clearly")
+                    else:
+                        chip_why.setdefault(chip, f"{asset.filename} (the picture under its line) shows "
+                                                  f"{', '.join(asset.tags)}, not {', '.join(named) if named else 'what it names'}")
             elif topic and asset.topic == topic:
                 overlay.append(chip)
                 shown_chips.add(chip)

@@ -6,6 +6,7 @@ import copy
 
 import pytest
 
+from src.agents.video import photo_tags
 from src.agents.video import script as script_agent
 from src.agents.video import storyboard as sb
 from src.agents.video import voice
@@ -225,3 +226,92 @@ def test_a_shot_carries_its_pictures_caption_and_tags(tmp_path):
     for shot in board.shots[:-1]:
         assert shot.tags == _by_id(plan)[shot.image_id].tags and shot.caption.startswith("A picture of ")
     assert board.shots[-1].tags == [] and board.shots[-1].caption == ""
+
+
+# -- evidence: a tag needs its caption (photo_tags.evidence) --------------------------------------------------------
+
+POOL_CAPTION = "A swimming pool with sun loungers and a deck"
+TOWERS = "Two residential towers at dusk surrounded by green trees"       # a pool is in a corner of the frame
+
+
+def read(plan: Plan, readings: dict) -> None:
+    """Gives each picture the reading of a vision model, (its tags, its caption), through the evidence rule, and
+    writes the script again."""
+    for asset in plan.assets:
+        tags, caption = readings.get(asset.filename, ([], ""))
+        asset.tags, asset.weak_tags = photo_tags.evidence(tags, caption)
+        asset.caption = caption
+    plan.result = script_agent.run(plan.prop, plan.brief, plan.knowledge, plan.assets)
+    plan.script = plan.result.script
+
+
+AGREE = {"exterior_facade.jpg": (["exterior"], "A tower"), "swimming_pool.jpg": (["pool"], POOL_CAPTION),
+         "gym.jpg": (["gym"], "A gym with treadmills"), "garden_landscape.jpg": (["lawn"], "A lawn with a garden")}
+
+
+def test_a_photograph_tagged_and_captioned_with_the_amenity_is_used_for_its_line_and_chip(tmp_path):
+    plan = Plan(make_video_property(tmp_path), {"highlights": ["Rooftop infinity pool"]})
+    read(plan, AGREE)
+    line = next(l for l in plan.script.lines if "pool" in l.text.lower())
+    assert line.photo == _ids(plan)["swimming_pool.jpg"] and "pool" in line.tags
+    assert any("pool" in c.lower() for c in plan.script.chips)
+    assert not any("does not show it clearly" in n for n in plan.script.notes)
+
+
+def test_a_tag_only_photograph_is_not_used_for_the_line_or_the_chip_and_the_note_says_so(tmp_path):
+    plan = Plan(make_video_property(tmp_path), {"highlights": ["Rooftop infinity pool"]})
+    read(plan, {**AGREE, "swimming_pool.jpg": (["pool"], TOWERS)})            # tagged pool, the caption does not say it
+    ids = _ids(plan)
+
+    assert not any("pool" in l.text.lower() for l in plan.script.lines)
+    assert not any("pool" in c.lower() for c in plan.script.chips)
+    assert not any(l.photo == ids["swimming_pool.jpg"] for l in plan.script.lines)
+    assert ("Rooftop infinity pool left out: the only photograph tagged with it (swimming_pool.jpg) does not show it "
+            "clearly.") in plan.script.notes
+    assert not any(n.startswith("Left out of the script: 'Rooftop infinity pool") for n in plan.script.notes)
+
+
+def test_the_tag_only_photograph_is_still_a_picture_for_a_scene_or_the_exterior(tmp_path):
+    plan = Plan(make_video_property(tmp_path), {"highlights": ["Rooftop infinity pool"]})
+    read(plan, {**AGREE, "swimming_pool.jpg": (["exterior", "pool"], TOWERS)})
+    asset = next(a for a in plan.assets if a.filename == "swimming_pool.jpg")
+    assert asset.tags == ["exterior"] and asset.weak_tags == ["pool"] and asset.usable      # still an exterior picture
+    exteriors = [a.filename for a in plan.assets if "exterior" in a.tags]
+    assert "swimming_pool.jpg" in exteriors
+
+
+def test_when_several_photographs_are_tag_only_the_note_names_them_all(tmp_path):
+    plan = Plan(make_video_property(tmp_path), {"highlights": ["Rooftop infinity pool"]})
+    read(plan, {**AGREE, "swimming_pool.jpg": (["pool"], TOWERS), "clubhouse.jpg": (["pool", "interior"], "A hall")})
+    note = next(n for n in plan.script.notes if n.startswith("Rooftop infinity pool left out:"))
+    assert "the photographs tagged with it (" in note and "do not show it clearly" in note
+    assert "swimming_pool.jpg" in note and "clubhouse.jpg" in note
+
+
+def test_an_amenity_with_no_tag_at_all_keeps_the_old_note(tmp_path):
+    plan = Plan(make_video_property(tmp_path), {"highlights": ["Rooftop infinity pool"]})
+    read(plan, {**AGREE, "swimming_pool.jpg": (["lawn"], "A lawn with a garden")})
+    assert any(n.startswith("Left out of the script: 'Rooftop infinity pool") and "No photograph shows it" in n
+               for n in plan.script.notes)
+
+
+def test_a_trimmed_line_says_which_dropped_unit_has_only_a_tag_only_photograph(tmp_path):
+    plan = Plan(make_video_property(tmp_path), {"highlights": ["Gymnasium and swimming pool"]})
+    read(plan, {**AGREE, "swimming_pool.jpg": (["pool"], TOWERS)})
+    note = next(n for n in plan.script.notes if n.startswith("Trimmed 'Gymnasium and swimming pool'"))
+    assert "to 'Gymnasium'" in note and "no photograph shows swimming pool" in note
+    assert note.endswith("Tagged with it but not shown clearly: pool (swimming_pool.jpg).")
+
+
+def test_a_chip_over_a_tag_only_photograph_is_dropped_and_says_why(tmp_path):
+    plan = Plan(make_video_property(tmp_path), {"duration_s": 10})              # a hook shot, a pool shot, the card
+    read(plan, {**AGREE, "swimming_pool.jpg": (["pool"], TOWERS)})
+    ids = _ids(plan)
+    script = _script(ScriptLine(text="Welcome.", role="hook", topic="exterior"),
+                     ScriptLine(text="A pool on site.", role="feature", tags=["pool"], photo=ids["swimming_pool.jpg"]),
+                     ScriptLine(text="Book a visit.", role="cta"), chips=["Swimming pool"], chip_lines=[1])
+    board = _board(plan, script)
+
+    assert not any("Swimming pool" in s.overlay_text for s in board.shots)
+    assert ("Chip 'Swimming pool' dropped: swimming_pool.jpg (the picture under its line) is tagged with it but its "
+            "caption does not say it, so it does not show it clearly.") in board.notes

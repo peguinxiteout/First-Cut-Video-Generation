@@ -15,6 +15,14 @@ is tagged pool.
 A word is matched whole (a plural too), longest phrase first, and a phrase that has been
 read is not read again, so "pool table" is a lounge and not a pool, and "courtyard" is not a
 court.
+
+EVIDENCE. A picture shows an amenity only when the vision model tagged it AND the caption says
+it, both read through this vocabulary (`evidence`). A tag the caption does not back is "weak":
+the amenity may be in the frame (a pool in a corner of a tower picture) but a viewer would not
+see it, so such a picture is never the picture for a line or a chip about it. It still serves as
+a general, scene or exterior picture. The caption is read with a tighter list than a brochure's
+amenity strings (`caption_ignore`, `caption_consume` in vision.yaml): "green trees" is not a
+lawn and a home's "dining room" is not a dining amenity.
 """
 from __future__ import annotations
 
@@ -52,6 +60,20 @@ def _vocabulary() -> tuple[tuple[tuple[str, str, re.Pattern], ...], tuple[str, .
     return tuple(entries), tuple(amenities), tuple(scenes)
 
 
+@lru_cache(maxsize=1)
+def _caption_vocabulary() -> tuple[tuple[str, str, re.Pattern], ...]:
+    """The entries a caption is read with: the vocabulary without the words that read too much into
+    a caption, and with the phrases a caption uses for something that is not an amenity."""
+    config = load_yaml_config(CONFIG_FILE)
+    ignored = {_norm(w) for w in config.get("caption_ignore") or []}
+    entries = [e for e in _vocabulary()[0] if e[1] not in ignored]
+    for phrase in config.get("caption_consume") or []:
+        text = _norm(phrase)
+        entries.append(("", text, re.compile(rf"(?<![a-z]){re.escape(text)}(?:s|es)?(?![a-z])")))
+    entries.sort(key=lambda e: -len(e[1]))
+    return tuple(entries)
+
+
 def _norm(text: str) -> str:
     return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9]+", " ", (text or "").lower())).strip()
 
@@ -80,9 +102,9 @@ def scene_names() -> list[str]:
     return list(_vocabulary()[2])
 
 
-def _read(text: str) -> list[str]:
+def _read(text: str, entries=None) -> list[str]:
     """The vocabulary names (amenities and scenes) in a text, in order of the phrases found."""
-    entries, _, _ = _vocabulary()
+    entries = _vocabulary()[0] if entries is None else entries
     left, found = f" {_norm(text)} ", []
     for name, word, pattern in entries:
         if pattern.search(left):
@@ -113,21 +135,24 @@ def clean(tags, limit: int = 8) -> list[str]:
 
 
 def from_caption(caption: str) -> list[str]:
-    """The amenities a picture's caption speaks of: text matching on the reading the vision model
-    already made, no second call. Views (exterior, interior) are not taken from a caption: a rooftop
-    "outdoor kitchen" would read as an interior."""
+    """The amenities a picture's caption speaks of, read with the caption's own list (see EVIDENCE).
+    Views (exterior, interior) are not taken from a caption: a rooftop "outdoor kitchen" would read
+    as an interior."""
     amenities = set(_vocabulary()[1])
-    return [name for name in _read(caption or "") if name in amenities]
+    return [name for name in _read(caption or "", _caption_vocabulary()) if name in amenities]
 
 
-def merge(tags, caption: str = "", limit: int = 12) -> list[str]:
-    """A picture's cleaned tags, then what its caption adds, without duplicates. The model's own
-    tags come first; `limit` is higher than the model's own cap because captions add to it."""
-    out = clean(tags, limit)
-    for name in from_caption(caption):
-        if name not in out:
-            out.append(name)
-    return out[:limit]
+def evidence(tags, caption: str = "", limit: int = 12) -> tuple[list[str], list[str]]:
+    """(the tags a picture is used with, its weak tags). The model's tags come first, cleaned. A view
+    (exterior, interior ...) or any tag that is not an amenity stands as it is; an amenity tag stands
+    only when the caption says it too. The weak tags are the amenities the model tagged and the
+    caption does not say. An amenity only the caption says is not a tag: the model did not see it."""
+    amenities = set(_vocabulary()[1])
+    said = set(from_caption(caption))
+    cleaned = clean(tags, limit)
+    shown = [t for t in cleaned if t not in amenities or t in said]
+    weak = [t for t in cleaned if t in amenities and t not in said]
+    return shown, weak
 
 
 def shows(text: str, tags) -> list[str]:

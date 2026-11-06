@@ -149,18 +149,30 @@ def test_the_blended_quality_is_written_back_for_the_planner(tmp_path, refuse_vi
         assert analyses[asset.image_id].quality == asset.quality
 
 
-def test_a_pictures_caption_adds_the_tags_its_words_name_without_a_second_model_call(tmp_path, monkeypatch):
+def _read_with(tmp_path, monkeypatch, caption, tags):
     from src.agents.video import vision_cache
     from src.data.video_schemas import PhotoAnalysis
 
     monkeypatch.setattr("src.core.config.settings.gemini_api_key", "k", raising=False)
-    caption = "Outdoor fitness equipment and children play structures set in a landscaped garden"
 
     def reading(images, **kwargs):
         return vision_cache.Reading(analyses={i.image_id: PhotoAnalysis(
             image_id=i.image_id, category="amenity", quality=7, composition=7, hero_score=6, caption=caption,
-            tags=["amenity", "play area", "lawn"]) for i in images})
+            tags=tags) for i in images})
 
     monkeypatch.setattr("src.agents.video.vision_cache.classify", reading)
     _, ranked, _, _ = asset_audit.run(_images(make_video_property(tmp_path)), offline=False, photo_shots=4)
-    assert ranked and all(a.tags == ["amenity", "play area", "lawn", "gym"] and a.caption == caption for a in ranked)
+    return ranked
+
+
+def test_a_tag_stays_when_its_caption_says_it_and_the_caption_adds_nothing(tmp_path, monkeypatch):
+    caption = "Outdoor fitness equipment and children play structures set in a landscaped garden"
+    ranked = _read_with(tmp_path, monkeypatch, caption, ["amenity", "play area", "lawn"])
+    assert ranked and all(a.tags == ["amenity", "play area", "lawn"] and a.weak_tags == [] and a.caption == caption
+                          for a in ranked)                                      # no "gym": the model did not tag it
+
+
+def test_a_tag_the_caption_does_not_say_is_kept_apart_as_weak(tmp_path, monkeypatch):
+    ranked = _read_with(tmp_path, monkeypatch, "High-rise residential buildings at dusk surrounded by green trees",
+                        ["exterior", "pool"])
+    assert ranked and all(a.tags == ["exterior"] and a.weak_tags == ["pool"] for a in ranked)      # and no lawn from "trees"

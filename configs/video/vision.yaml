@@ -69,6 +69,22 @@ tags:
 # phrase itself as a tag.
 consume: [pet park, dog park]
 
+# What a CAPTION is not read for. A caption says what is in the picture, so a word that stands for
+# an amenity in a brochure but is as often something else in a photograph is not taken from it (the
+# words still count in an amenity string, a chip and the model's tags). A tag needs the caption to
+# say it too (photo_tags.evidence), so these keep a loose word from backing a tag. Neither list is
+# part of the prompt the vision model is given: changing them does not read any picture again.
+#   tree, greenery, green space, open space, courtyard, landscaped   not a lawn
+#   kid, child, children                                              not a play area ("kids pool" is still a pool)
+#   wellness                                                           not a spa ("wellness garden")
+#   water body                                                         not a pool
+#   promenade                                                          not a jogging track
+caption_ignore: [tree, greenery, green space, open space, courtyard, landscaped, kid, child, children, wellness,
+                 water body, promenade]
+# Phrases a caption uses for something that is not an amenity, read as nothing: a home's dining room
+# is not a dining amenity.
+caption_consume: [dining room]
+
 # More words for the names above, for what a camera sees rather than what a brochure calls it. They
 # are added to each name's words; a caption such as "outdoor fitness equipment" then reads as gym.
 # Kept strict on purpose: a sofa is not a lounge (a living room has one), an outdoor kitchen is not

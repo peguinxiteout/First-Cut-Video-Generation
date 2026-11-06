@@ -97,11 +97,12 @@ def run(images: list[ImageAsset], offline: bool, photo_shots: int):
         analysis = analyses[image.image_id]
         category = getattr(analysis.category, "value", str(analysis.category))
         topic = image.subject.strip().lower() or topics.of_image(analysis, image.filename)   # a label wins
+        tags, weak_tags = photo_tags.evidence(getattr(analysis, "tags", []), getattr(analysis, "caption", ""))
         asset = RankedAsset(
             image_id=image.image_id, filename=image.filename, path=image.path, width=width, height=height,
             sharpness=round(variance, 1), quality=analysis.quality, category=category, topic=topic,
             caption=getattr(analysis, "caption", ""),
-            tags=photo_tags.merge(getattr(analysis, "tags", []), getattr(analysis, "caption", "")),
+            tags=tags, weak_tags=weak_tags,
             cluster=plan.cluster(image.image_id))
         if width == 0:
             asset.usable, asset.note = False, "cannot be read"

@@ -7,10 +7,10 @@
 # when any check warns or the score is under pass_at; otherwise it PASSES. The record's status is
 # then "passed", "warned" or "failed", and a FAIL still keeps the MP4.
 weights:
-  format: 0.07
+  format: 0.06
   duration: 0.07
-  loudness: 0.07
-  black_frames: 0.07
+  loudness: 0.06
+  black_frames: 0.06
   frozen: 0.05
   narration_gaps: 0.05
   safe_zones: 0.07
@@ -21,6 +21,7 @@ weights:
   hook: 0.06
   chips: 0.07
   narration_picture: 0.08
+  narration_evidence: 0.03
   repeated_photo: 0.04
 
 pass_at: 85
@@ -80,6 +81,10 @@ thumbnail:
 # a tag of one of the photographs that line plays over. This many amenities named and not shown: fail.
 narration_picture:
   fail_missing: 1
+
+# Evidence: each amenity a line names, and each chip, is over a photograph whose tags AND caption both say it
+# (photo_tags.evidence). The planner only picks such photographs, so this warns for a plan made another way. Soft.
+narration_evidence: {}
 
 # The same photograph in two shots one after the other: this many repeats or more warns.
 repeated_photo:

@@ -156,12 +156,67 @@ def test_a_caption_adds_the_amenities_it_speaks_of_and_never_a_view(caption, exp
     assert photo_tags.from_caption(caption) == expected
 
 
-def test_the_models_tags_come_first_and_the_caption_adds_what_they_missed_without_duplicates():
-    tags = photo_tags.merge(["amenity", "play area", "lawn"], "Outdoor fitness equipment and children play structures "
-                            "set in a landscape")
-    assert tags == ["amenity", "play area", "lawn", "gym"]
-    assert photo_tags.merge(["pool"], "A swimming pool at dusk") == ["pool"]
-    assert photo_tags.merge(None, None) == [] and len(photo_tags.merge([f"t{i}" for i in range(20)], "a gym", limit=12)) == 12
+BACKSIDE = "High-rise residential buildings illuminated at dusk surrounded by green trees"       # the pool is in a corner
+
+
+def test_a_tag_stands_only_when_the_caption_says_it_too():
+    assert photo_tags.evidence(["exterior", "pool"], "Two towers at dusk above a lit swimming pool") == (
+        ["exterior", "pool"], [])
+    assert photo_tags.evidence(["exterior", "pool"], BACKSIDE) == (["exterior"], ["pool"])       # weak: tag only
+
+
+def test_the_caption_adds_no_tag_the_model_did_not_give():
+    caption = "Outdoor fitness equipment and play structures set in a garden"
+    assert photo_tags.from_caption(caption) == ["gym", "play area", "lawn"]
+    assert photo_tags.evidence(["amenity", "play area", "lawn"], caption) == (["amenity", "play area", "lawn"], [])
+
+
+def test_a_view_or_any_tag_that_is_not_an_amenity_needs_no_caption():
+    assert photo_tags.evidence(["interior", "entrance", "exterior"], "") == (["interior", "entrance", "exterior"], [])
+    assert photo_tags.evidence(None, None) == ([], []) and photo_tags.evidence(["a view"], "x") == (["a view"], [])
+
+
+def test_without_a_caption_every_amenity_tag_is_weak():
+    assert photo_tags.evidence(["pool", "gym", "exterior"], "") == (["exterior"], ["pool", "gym"])
+    assert photo_tags.evidence(["pool", "gym", "exterior"], None) == (["exterior"], ["pool", "gym"])
+
+
+def test_the_tags_are_cleaned_and_capped_before_the_caption_decides():
+    shown, weak = photo_tags.evidence(["Swimming Pool", "pool", "lap pool", "gym"], "A lap pool", limit=12)
+    assert shown == ["pool"] and weak == ["gym"]
+    assert len(photo_tags.evidence([f"t{i}" for i in range(20)], "a gym", limit=12)[0]) == 12
+
+
+@pytest.mark.parametrize("caption, expected", [
+    (BACKSIDE, []),                                                      # trees are not a lawn
+    ("A tree-lined promenade between two blocks", []),
+    ("Greenery and open space around the towers", []),
+    ("A courtyard with a bench", []),
+    ("Children playing near the entrance", []),                          # children are not a play area
+    ("A kids pool and a sun lounger", ["pool"]),                         # but a kids pool is a pool
+    ("A wellness garden with a pergola", ["pergola", "lawn"]),           # wellness is not a spa
+    ("A pond among the trees", ["water feature"]),                       # a water body is not a pool
+    ("A dining room with an oval table, green chairs, and a balcony entrance", []),    # a home's dining room
+    ("A rooftop terrace with an outdoor dining area", ["dining", "rooftop"]),
+    ("A landscaped garden with a lawn and a park bench", ["lawn"]),
+])
+def test_a_caption_is_not_read_for_words_that_are_as_often_something_else(caption, expected):
+    assert photo_tags.from_caption(caption) == expected
+
+
+def test_the_words_a_caption_ignores_still_name_an_amenity_everywhere_else():
+    assert photo_tags.needs("Landscaped garden with trees") == {"lawn"}
+    assert photo_tags.needs("Kids play area") == {"play area"}
+    assert photo_tags.needs("Wellness centre") == {"spa"}
+    assert photo_tags.clean(["tree", "children"]) == ["lawn", "play area"]
+    assert photo_tags.shows("Dining", ["dining"]) == ["dining"]
+
+
+def test_the_caption_lists_are_not_part_of_the_prompt_the_vision_model_is_given():
+    from src.agents.video import vision_cache
+
+    prompt = vision_cache.prompt_text()
+    assert "caption_ignore" not in prompt and "promenade" not in prompt and "dining room" not in prompt
 
 
 @pytest.mark.parametrize("word, name", [

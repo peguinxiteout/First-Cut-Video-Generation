@@ -461,7 +461,7 @@ def test_a_soft_check_failing_only_warns_while_the_score_holds():
 
 def test_many_soft_failures_drag_the_score_under_the_floor_and_fail_the_gate():
     result = gate.verdict(_checks(loudness="fail", frozen="fail", narration_gaps="fail", upscale="fail",
-                                  black_frames="warn", one_voice="warn"), CFG)
+                                  black_frames="warn", one_voice="warn", narration_evidence="fail"), CFG)
     assert result.quality_score < CFG["fail_below"] and result.gate_result == VideoGate.FAIL
 
 
@@ -609,3 +609,56 @@ def test_a_gate_that_crashes_only_warns_and_the_video_is_kept(tmp_path, _isolate
     assert record.status == "warned" and record.error is None and Path(record.video_path).exists()
     assert "the gate could not run (RuntimeError: detector exploded)" in record.evaluation.defects[0]
     assert (Path(record.output_dir) / "qa.json").exists()
+
+
+# -- narration evidence: tags AND captions -------------------------------------------------------------------------
+
+def _evidence_board(*shots: tuple[list[int], list[str], str, list[str]]) -> Storyboard:
+    """Photograph shots of (the lines they carry, the tags of their photograph, its caption, the text on it)."""
+    real = [Shot(index=i, seconds=3.0, line_ids=lines, tags=tags, caption=caption, overlay_text=text,
+                 image_id=f"IMG{i}") for i, (lines, tags, caption, text) in enumerate(shots)]
+    real.append(Shot(index=len(real), kind="card", camera="still", seconds=2.0))
+    return Storyboard(shots=real)
+
+
+def test_an_amenity_over_a_photograph_whose_tags_and_caption_both_say_it_passes():
+    script = _spoken_script("Welcome.", "On site: gym.")
+    board = _evidence_board(([0], ["exterior"], "A tower at dusk", []), ([1], ["gym"], "A gym with treadmills", []))
+    check = gate.check_narration_evidence(script, board)
+    assert check.status == "pass" and "1 amenity mention(s)" in check.detail
+
+
+def test_an_amenity_over_a_photograph_with_the_tag_and_no_caption_support_warns():
+    script = _spoken_script("Welcome.", "On site: gym.")
+    board = _evidence_board(([0], ["exterior"], "A tower at dusk", []), ([1], ["gym"], "A room with grey walls", []))
+    check = gate.check_narration_evidence(script, board)
+    assert check.status == "warn" and "line 2 names gym" in check.detail and check.values["weak"] == 1
+
+
+def test_one_shot_among_those_under_a_line_is_enough():
+    script = _spoken_script("Welcome.", "On site: gym.")
+    board = _evidence_board(([0], ["exterior"], "A tower", []), ([1], ["gym"], "Grey walls", []),
+                            ([1], ["gym"], "Rows of treadmills", []))
+    assert gate.check_narration_evidence(script, board).status == "pass"
+
+
+def test_a_chip_is_held_to_the_same_rule():
+    script = _chip_script("Gym")
+    over_caption = _evidence_board(([0], ["gym"], "A gym with weights", ["Gym"]))
+    assert gate.check_narration_evidence(script, over_caption).status == "pass"
+    tag_only = _evidence_board(([0], ["gym"], "Two towers at dusk", ["Gym"]))
+    check = gate.check_narration_evidence(script, tag_only)
+    assert check.status == "warn" and "the chip 'Gym' (shot 1)" in check.detail
+
+
+def test_without_tags_there_is_nothing_to_audit_and_no_amenity_passes():
+    script = _spoken_script("Welcome.", "On site: gym.")
+    assert gate.check_narration_evidence(script, _evidence_board(([0], [], "", []), ([1], [], "", []))).status == "skipped"
+    plain = _evidence_board(([0], ["exterior"], "A tower", []))
+    assert gate.check_narration_evidence(_spoken_script("Welcome."), plain).status == "pass"
+
+
+def test_narration_evidence_is_soft_and_weighted():
+    assert "narration_evidence" in CFG["weights"] and "narration_evidence" not in CFG["hard"]
+    assert gate.verdict(_checks(narration_evidence="warn"), CFG).gate_result == VideoGate.WARN
+    assert gate.verdict(_checks(narration_evidence="fail"), CFG).gate_result == VideoGate.WARN
