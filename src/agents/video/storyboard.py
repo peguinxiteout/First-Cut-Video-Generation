@@ -60,6 +60,13 @@ def allowed_generated_kinds() -> list[str]:
 # the plan
 # ---------------------------------------------------------------------------
 
+def photo_shot_count(brief: VideoBrief, pacing: Optional[dict] = None) -> int:
+    """How many photograph shots the plan wants: the pace's count, or more when that would hold a still longer
+    than the hold target. The script writes about one line for each."""
+    pacing = pacing or load_yaml_config("video/pacing.yaml")
+    return max(brief.n_shots - 1, math.ceil((brief.duration_s - pacing["end_card_s"]) / pacing["hold"]["target_s"]))
+
+
 def photo_seconds(duration_s: float, count: int, end_card_s: float, min_hook_s: float) -> list[float]:
     """Seconds for each photograph shot: the hook first, the rest equal, the
     whole adding up to the video less its closing card."""
@@ -83,6 +90,11 @@ def assign_lines(script: VideoScript, seconds: list[float], words_per_second: fl
     if not body:
         return [[] for _ in seconds]
     lengths = [max(1.0, script.lines[i].words / words_per_second) for i in body]
+    if len(seconds) >= len(body):
+        return _a_shot_each(body, lengths, len(seconds))
+    merged = _merge_to_fit(script, body, lengths, len(seconds))
+    if merged is not None:
+        return merged
     scale = sum(seconds) / sum(lengths)
     spans, t = [], 0.0
     for i, length in zip(body, lengths):
@@ -95,6 +107,34 @@ def assign_lines(script: VideoScript, seconds: list[float], words_per_second: fl
         out.append(ids or [i for i, a, b in spans if a <= start < b][:1] or [spans[-1][0]])
         start = end
     return out
+
+
+def _a_shot_each(body: list[int], lengths: list[float], shots: int) -> list[list[int]]:
+    """With a shot or more for every line: each line gets one, and each spare shot goes to the line that plays
+    longest for the shots it has, so a long line is spread over the shots it needs and a short one is not
+    split. The hook never gets more than two."""
+    counts = [1] * len(body)
+    for _ in range(shots - len(body)):
+        open_ = [j for j in range(len(body)) if not (j == 0 and counts[0] >= 2)]
+        counts[max(open_ or range(len(body)), key=lambda j: lengths[j] / counts[j])] += 1
+    return [[i] for i, count in zip(body, counts) for _ in range(count)]
+
+
+def _merge_to_fit(script: VideoScript, body: list[int], lengths: list[float], shots: int) -> Optional[list[list[int]]]:
+    """With more lines than shots, the two neighbouring lines that play shortest together share a shot, again and
+    again, so no shot is made to carry more than it must. Two lines that each need a picture never share one
+    (a shot shows one picture). None when that cannot be done."""
+    groups, durations = [[i] for i in body], list(lengths)
+    needs = lambda group: any(script.lines[i].tags for i in group)               # noqa: E731
+    while len(groups) > shots:
+        pairs = [(durations[k] + durations[k + 1], k) for k in range(len(groups) - 1)
+                 if not (needs(groups[k]) and needs(groups[k + 1]))]
+        if not pairs:
+            return None
+        k = min(pairs)[1]
+        groups[k] += groups.pop(k + 1)
+        durations[k] += durations.pop(k + 1)
+    return groups
 
 
 def hook_asset(usable: list[RankedAsset], hero_name: str, notes: list[str]) -> Optional[RankedAsset]:
@@ -143,14 +183,40 @@ def one_tagged_line_per_shot(script: VideoScript, lines_by_shot: list[list[int]]
     return shots
 
 
-def _by_tags(lines: list, fresh: list, candidates: list[str], by_id: dict) -> Optional[str]:
+def _by_scene(lines: list, candidates: list[str], by_id: dict, previous: Optional[RankedAsset],
+              rooms_wanted_later: bool) -> Optional[str]:
+    """The picture for lines that need no amenity shown, by the kind of picture they want (`ScriptLine.scene`):
+    an interior line a room of a home, a different one from the shot before; an exterior line an exterior
+    picture; a view line the aerial or distant one first; any other the best exterior, else the best. A line
+    that does not want a room leaves the rooms to the interior line still to come, unless nothing else is
+    left. None only for an interior line with no room left."""
+    scene = next((line.scene for line in lines if line.scene and line.scene != "any"), "any")
+    if scene == "interior":
+        order = photo_tags.room_order()
+        last = previous.room if previous else ""
+        rooms = [c for c in candidates if by_id[c].room]
+        rooms.sort(key=lambda c: (by_id[c].room == last, order.index(by_id[c].room) if by_id[c].room in order else len(order)))
+        return rooms[0] if rooms else None
+    rest = [c for c in candidates if not (rooms_wanted_later and by_id[c].room)] or candidates
+    if scene in ("exterior", "view"):
+        outside = [c for c in rest if "exterior" in by_id[c].tags and not by_id[c].room]
+        if scene == "view":                                      # the aerial picture, else any exterior
+            outside.sort(key=lambda c: not photo_tags.is_view(by_id[c].topic, by_id[c].caption))
+        hit = outside[0] if outside else next((c for c in rest if "entrance" in by_id[c].tags), None)
+        if hit:
+            return hit
+    return next((c for c in rest if "exterior" in by_id[c].tags), rest[0] if rest else None)
+
+
+def _by_tags(lines: list, fresh: list, candidates: list[str], by_id: dict, previous: Optional[RankedAsset] = None,
+             rooms_wanted_later: bool = False) -> Optional[str]:
     """The picture for a shot when pictures are tagged (`candidates` are the unused pictures,
     best first). `fresh` are the lines of the shot that begin here and need something shown:
     they get the picture the script set aside, else one tagged with what they need. A line
     that carries on from an earlier shot takes a picture of the same kind. If no candidate
     shows what a line needs the answer is None (never an unrelated picture: the planner then
-    shows a matching picture again). Lines that need nothing take a picture tagged exterior
-    if there is one, else the best."""
+    shows a matching picture again). Lines that need nothing take the kind of picture their scene
+    asks for (`_by_scene`): by default an exterior if there is one, else the best."""
     for line in fresh:
         if line.photo and line.photo in candidates:
             return line.photo
@@ -161,7 +227,7 @@ def _by_tags(lines: list, fresh: list, candidates: list[str], by_id: dict) -> Op
             return hit
     if fresh or carrying:
         return None
-    return next((c for c in candidates if "exterior" in by_id[c].tags), candidates[0] if candidates else None)
+    return _by_scene(lines, candidates, by_id, previous, rooms_wanted_later)
 
 
 def _continue(carry: list, candidates: list[str], by_id: dict) -> tuple[Optional[str], str]:
@@ -209,7 +275,10 @@ def run(brief: VideoBrief, script: VideoScript, assets: list[RankedAsset],
     by_id = {a.image_id: a for a in usable}
     tagged = any(a.read_by_vision for a in usable)                # read by a vision model
     hold = pacing["hold"]
-    desired = max(brief.n_shots - 1, math.ceil((brief.duration_s - end_card_s) / hold["target_s"]))
+    desired = photo_shot_count(brief, pacing)
+    body_lines = [l for l in script.lines if l.role != "cta"]
+    too_long = sum(1 for l in body_lines if l.words / words_per_second + pacing["voice"]["gap_s"] > hold["cap_s"])
+    desired = max(desired, len(body_lines) + too_long)                 # a line that would hold a still past the cap gets two
     allowance = pacing["max_reuse_per_photo"]
     count = 1 if not usable else min(desired, len(usable) + min(len(usable) * allowance, len(usable) - 1))
     if not usable:
@@ -259,13 +328,21 @@ def run(brief: VideoBrief, script: VideoScript, assets: list[RankedAsset],
                 if tagged:
                     previous_image = shots[-1].image_id if shots else ""
                     pool = [c for c in candidates if c != previous_image and c not in reserved]
+                    views_later = any(script.lines[i].scene == "view" for i in range(len(script.lines)) if i not in owned)
+                    if views_later and not any(l.scene == "view" for l in lines):     # the aerial picture is for the line that wants it
+                        pool = [c for c in pool if not photo_tags.is_view(by_id[c].topic, by_id[c].caption)] or pool
                     if continuing and carry:
                         choice, how = _continue(carry, pool, by_id)
                     else:
-                        choice = _by_tags(lines, fresh, pool, by_id)
+                        rooms_later = any(script.lines[i].scene == "interior" for i in range(len(script.lines)) if i not in owned)
+                        choice = _by_tags(lines, fresh, pool, by_id, by_id.get(previous_image), rooms_later)
                 else:
-                    choice = next((c for c in candidates if wanted and by_id[c].topic == wanted),
-                                  candidates[0] if candidates else None)
+                    # A line about nothing in particular leaves the pictures of what a later line is about.
+                    later = {script.lines[i].topic for i in range(len(script.lines)) if i not in owned and script.lines[i].topic}
+                    choice = next((c for c in candidates if wanted and by_id[c].topic == wanted), None)
+                    if choice is None and not wanted:
+                        choice = next((c for c in candidates if by_id[c].topic not in later), None)
+                    choice = choice or (candidates[0] if candidates else None)
                 if choice:
                     allocator.note(choice, k)
             asset = by_id.get(choice) if choice else None
@@ -296,6 +373,9 @@ def run(brief: VideoBrief, script: VideoScript, assets: list[RankedAsset],
             kind = "an interior" if "interior" in asset.tags else "an entrance" if "entrance" in asset.tags else "an exterior"
             notes.append(f"The rest of '{carry[0].text}' plays over {asset.filename}, {kind} picture: "
                          f"no other unused photograph shows {what}.")
+        if tagged and asset is not None and not asset.room and any(l.scene == "interior" for l in lines):
+            notes.append(f"'{next(l.text for l in lines if l.scene == 'interior')}' plays over {asset.filename}, "
+                         "not a room of a home: no unused photograph shows one.")
         needed = fresh
         if asset is not None and asset.tags and needed:
             asked += 1

@@ -238,3 +238,28 @@ def test_when_the_others_have_nothing_to_give_the_short_shots_stay_short_and_it_
     note = voice._lift_to_floor(seconds, 1.0)
     assert seconds == [0.5, 0.9, 1.0] and note == "2 shot(s) are under 1 s and the others have no time to give."
     assert voice._lift_to_floor([2.0, 3.0], 1.0) == ""
+
+
+# -- the closing card keeps to its cap; the spare time goes to the photograph shots ---------------------------------
+
+def test_a_short_narration_leaves_the_closing_card_within_three_seconds_and_lengthens_the_shots():
+    board = _board(((0,), (1,), (2,), ()))
+    t = _timing([1.5, 1.5, 1.5, 1.5], 30, board)
+    card = t.shot_seconds[-1]
+    assert card <= 3.0 + 1e-6 and card >= 1.5
+    assert sum(t.shot_seconds) == pytest.approx(t.total_s, abs=0.01) and t.total_s == pytest.approx(30, abs=0.01)
+    assert sum(t.shot_seconds[:-1]) > 26                                                    # the time is in the shots
+
+
+def test_the_card_takes_its_share_of_the_spare_time_only_up_to_the_cap():
+    board = _board(((0,), (1,), (2,), ()))
+    small = _timing([2.0, 2.0, 2.0, 2.0], 12, board)                                          # a little spare time
+    assert small.shot_seconds[-1] <= 3.0 + 1e-6
+    lax = voice.retime([1.5] * 4, board, 30, {**CONFIG, "voice": {**CONFIG["voice"], "max_end_card_s": 5.0}})
+    assert 3.0 < lax.shot_seconds[-1] <= 5.0 + 1e-6                                          # the cap is the config's
+
+
+def test_a_card_that_already_fills_its_cap_takes_none_of_the_spare_time():
+    board = _board(((0,), (1,), (2,), ()))
+    t = _timing([1.0, 1.0, 1.0, 2.9], 30, board)                    # the last line alone makes the card 0.15 + 2.9 + 0.3 s
+    assert t.shot_seconds[-1] == pytest.approx(3.35, abs=0.01)

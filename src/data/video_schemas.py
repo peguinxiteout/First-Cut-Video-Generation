@@ -210,6 +210,7 @@ class RankedAsset(BaseModel):
     tags: list[str] = Field(default_factory=list)   # what is clearly visible, as photo_tags names (empty without vision)
     # Amenities the model tagged that the caption does not say: not evidence for a line or a chip.
     weak_tags: list[str] = Field(default_factory=list)
+    room: str = ""                        # the room of a home it shows (living, bedroom ...), from category and caption
     cluster: int = -1                     # pictures that look alike share one (image_plan)
     duplicate_of: str = ""                # the better picture of its cluster, when this is not it
     usable: bool = True
@@ -231,6 +232,8 @@ class ScriptLine(BaseModel):
     topic: str = ""                       # a key of src/agents/brochure/topics.py, for choosing the photograph
     tags: list[str] = Field(default_factory=list)   # what a photograph must show to carry this line (photo_tags names)
     photo: str = ""                       # the picture the script set aside for it, when it needs one
+    source: str = ""                      # the fact the line comes from ("unit types", "selling point: ..."), to check it
+    scene: str = ""                       # the kind of picture it wants: exterior | interior | amenity | view | any
 
     @property
     def words(self) -> int:

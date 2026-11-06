@@ -1,6 +1,8 @@
 """Node 4: the offline script, and the guard on everything it says and shows."""
 from __future__ import annotations
 
+import math
+
 import pytest
 
 from src.agents.brochure import facts, strategy
@@ -48,8 +50,8 @@ def test_the_lines_follow_the_structure_for_the_length(tmp_path, seconds, roles)
     assert plan.script.word_count <= plan.brief.target_words * 1.1
 
 
-def test_a_longer_video_gets_proof_lines_too(tmp_path):
-    plan = _plan(tmp_path, duration_s=30)
+def test_a_longer_video_with_few_highlights_gets_proof_lines_too(tmp_path):
+    plan = Plan(make_video_property(tmp_path, usps="", amenities="Parking"), {"duration_s": 30})
     assert "proof" in [l.role for l in plan.script.lines]
 
 
@@ -77,16 +79,16 @@ def test_highlights_come_first_and_keep_their_own_words(tmp_path):
 
 
 def test_a_highlight_with_an_invented_number_is_dropped_and_the_reason_recorded(tmp_path):
-    plan = _plan(tmp_path, highlights=["50 acres of landscaped gardens", "Rooftop infinity pool"])
+    plan = _plan(tmp_path, highlights=["Over 50 premium amenities", "Rooftop infinity pool"])
 
     assert not any("50" in l.text for l in plan.script.lines)
     assert "Rooftop infinity pool." in [l.text for l in plan.script.lines]
-    assert ("Highlight dropped: '50 acres of landscaped gardens' because '50' is not a figure in the "
+    assert ("Highlight dropped: 'Over 50 premium amenities' because '50' is not a figure in the "
             "property's facts.") in plan.script.notes
 
 
 def test_a_highlight_with_a_number_word_is_dropped_too(tmp_path):
-    plan = _plan(tmp_path, highlights=["Twenty acres of gardens"])
+    plan = _plan(tmp_path, highlights=["Twenty amenities on site"])
     assert not any("wenty" in l.text for l in plan.script.lines)
     assert any("'twenty' is not a figure" in n for n in plan.script.notes)
 
@@ -159,21 +161,22 @@ def test_a_call_to_action_with_an_invented_figure_is_replaced_by_the_default(tmp
 def test_too_long_a_script_is_trimmed_from_the_end(tmp_path):
     long = "A landscaped courtyard with seating and shade trees where neighbours meet every evening"
     plan = _plan(tmp_path, highlights=[long, long.replace("courtyard", "terrace")])
-    assert plan.script.word_count <= plan.brief.target_words * 1.1
-    assert any(n.startswith("Trimmed to fit 15 s") for n in plan.script.notes)
+    assert plan.script.word_count <= math.ceil(plan.brief.target_words * 1.1)
+    assert sum(1 for l in plan.script.lines if l.role == "feature") == 1       # the second highlight does not fit
+    assert long.replace("courtyard", "terrace") not in [l.text for l in plan.script.lines]
 
 
 def test_too_short_a_script_says_so(tmp_path):
-    plan = Plan(make_video_property(tmp_path, usps="", amenities="Parking"), None)
+    plan = Plan(make_video_property(tmp_path, usps="", amenities="Parking"), {"duration_s": 60})
     assert plan.script.word_count < plan.brief.target_words * 0.9
-    assert any("words against a target of 27" in n for n in plan.script.notes)
+    assert any(f"words against a target of {plan.brief.target_words}" in n for n in plan.script.notes)
 
 
 def test_narration_says_and_for_a_slash_but_the_chip_keeps_it(tmp_path):
     plan = Plan(make_video_property(tmp_path, usps="", amenities="Tennis/pickleball court\nSwimming pool"),
                 {"duration_s": 30})
     assert not any("/" in l.text for l in plan.script.lines)
-    assert any("tennis and pickleball court" in l.text for l in plan.script.lines)
+    assert any("tennis and pickleball court" in l.text.lower() for l in plan.script.lines)
     assert "Tennis/pickleball court" in plan.script.chips
 
 

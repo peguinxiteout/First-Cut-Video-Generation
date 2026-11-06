@@ -118,3 +118,28 @@ scenes:
   exterior: [exterior, tower, facade, building, elevation, skyline, architecture, aerial]
   entrance: [entrance, gate, arrival, driveway, porte cochere, lobby]
   interior: [interior, living room, bedroom, kitchen, bathroom, apartment]
+
+# The rooms of a home, read from a picture's stored category and its caption (photo_tags.room); not
+# part of the prompt the vision model is given, so changing them reads no picture again. A caption's
+# first room phrase names the room; a picture of a home interior with no room phrase takes the room
+# of its category (`room_category`). A picture of anything else (an exterior, an amenity) has no room,
+# so a clubhouse lounge is not a home's living room. These phrases are also read out of a caption
+# before its amenities, so a home's "dining area" is a room, not the dining amenity.
+rooms:
+  living: [living room, living area, family room, drawing room]
+  bedroom: [bedroom, bed room, master bedroom]
+  kitchen: [kitchen, kitchenette]
+  dining: [dining room, dining area, dining space]
+  bathroom: [bathroom, washroom, powder room]
+  balcony: [balcony, sit out]
+  study: [study room, study area, home office, study]
+# The room a picture of these stored categories shows when its caption names none.
+room_category: {living_room: living, bedroom: bedroom, kitchen: kitchen, bathroom: bathroom}
+# Stored categories whose captions are read for a room (the rest, exterior and amenity pictures, show none).
+room_caption_categories: [living_room, bedroom, kitchen, bathroom, lifestyle, other]
+# Phrases that name a kitchen, a deck or a lounge that is not a room of a home.
+not_a_room: [outdoor kitchen, outdoor dining, rooftop, roof top, clubhouse, club house, lobby]
+
+# Words in a caption or topic that make an exterior picture a view of the whole place (the script's
+# location line prefers one).
+views: [aerial, skyline, bird, drone, overview]

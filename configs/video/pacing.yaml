@@ -101,6 +101,7 @@ voice:
   min_lead_s: 0.1
   min_gap_s: 0.1
   min_end_card_s: 1.5
+  max_end_card_s: 3.0          # spare time goes to the photograph shots, not the card
   min_other_shot_s: 1.0         # the least a shot may be cut to, to give the hook its minimum
   pre_roll_s: 0.15
   fit_tolerance_s: 0.5

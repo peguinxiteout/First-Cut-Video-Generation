@@ -102,7 +102,7 @@ def run(images: list[ImageAsset], offline: bool, photo_shots: int):
             image_id=image.image_id, filename=image.filename, path=image.path, width=width, height=height,
             sharpness=round(variance, 1), quality=analysis.quality, category=category, topic=topic,
             caption=getattr(analysis, "caption", ""),
-            tags=tags, weak_tags=weak_tags,
+            tags=tags, weak_tags=weak_tags, room=photo_tags.room(category, getattr(analysis, "caption", "")),
             cluster=plan.cluster(image.image_id))
         if width == 0:
             asset.usable, asset.note = False, "cannot be read"

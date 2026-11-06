@@ -355,7 +355,7 @@ _logo = _data_uri(_LOGO_PNG)
 st.markdown(f"""
 <div class="fc-brand" role="banner">
   {f'<img class="fc-logo" src="{_logo}" alt="{PRODUCT_NAME}">' if _logo else f'<h1>{PRODUCT_NAME}</h1>'}
-  <div class="fc-tag"><b>AI-drafted brochures and blogs</b> for real estate teams, ready for your review.</div>
+
 </div>
 <p class="fc-eyebrow">What would you like to create?</p>
 """, unsafe_allow_html=True)

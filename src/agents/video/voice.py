@@ -120,8 +120,14 @@ def retime(durations: list[float], storyboard: Storyboard, duration_s: float, co
     defects: list[str] = []
 
     if natural <= duration_s + EPSILON:
-        share = (duration_s - natural) / (n + 1)
-        lead, gap, tail = lead + share, gap + share, tail + share
+        # The spare time goes to the photograph shots (the silence before the first word and between the
+        # lines is where a shot lengthens), not to the closing card: the card takes only what keeps it
+        # within `max_end_card_s`.
+        spare = duration_s - natural
+        card_room = max(0.0, v.get("max_end_card_s", 3.0) - pre - d_cta - tail)
+        tail_share = min(spare / (n + 1), card_room)
+        share = (spare - tail_share) / n                                     # the lead and the n - 1 gaps
+        lead, gap, tail = lead + share, gap + share, tail + tail_share
         if share > 0.6:
             notes.append(f"The narration is {natural:.1f} s for a {duration_s:g} s video: pauses are "
                          f"{gap:.1f} s long. A longer script would fill the time better.")

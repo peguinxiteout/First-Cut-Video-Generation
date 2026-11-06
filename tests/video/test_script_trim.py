@@ -83,7 +83,7 @@ def test_a_zone_line_is_trimmed_to_the_amenities_the_photograph_shows_and_the_tr
 
     assert line is not None and "yoga" not in line.text.lower()
     assert line.tags == ["gym"] and line.photo == next(a.image_id for a in plan.assets if a.filename == "gym.jpg")
-    assert "Trimmed 'gymnasium and yoga lawn' to 'gymnasium': no photograph shows yoga lawn." in plan.script.notes
+    assert "Trimmed 'Gymnasium and Yoga lawn' to 'Gymnasium': no photograph shows yoga lawn." in plan.script.notes
 
 
 def test_a_line_none_of_whose_amenities_has_a_photograph_is_dropped_and_noted(tmp_path):

@@ -66,12 +66,59 @@ def _caption_vocabulary() -> tuple[tuple[str, str, re.Pattern], ...]:
     a caption, and with the phrases a caption uses for something that is not an amenity."""
     config = load_yaml_config(CONFIG_FILE)
     ignored = {_norm(w) for w in config.get("caption_ignore") or []}
-    entries = [e for e in _vocabulary()[0] if e[1] not in ignored]
-    for phrase in config.get("caption_consume") or []:
+    consumed = list(config.get("caption_consume") or [])
+    for phrases in (config.get("rooms") or {}).values():          # a home's "dining area" is a room, not the amenity
+        consumed += list(phrases or [])
+    hidden = ignored | {_norm(p) for p in consumed}
+    entries = [e for e in _vocabulary()[0] if e[1] not in hidden]
+    for phrase in consumed:
         text = _norm(phrase)
         entries.append(("", text, re.compile(rf"(?<![a-z]){re.escape(text)}(?:s|es)?(?![a-z])")))
     entries.sort(key=lambda e: -len(e[1]))
     return tuple(entries)
+
+
+@lru_cache(maxsize=1)
+def _rooms() -> tuple[tuple[tuple[str, re.Pattern], ...], dict, frozenset, tuple[re.Pattern, ...]]:
+    """(the room phrases, longest first; the room of a stored category; the categories whose captions are
+    read for a room; the phrases that are not a room of a home)."""
+    config = load_yaml_config(CONFIG_FILE)
+    phrases = [(room, _norm(p)) for room, words in (config.get("rooms") or {}).items() for p in words or []]
+    phrases.sort(key=lambda e: -len(e[1]))
+    entries = tuple((room, re.compile(rf"(?<![a-z]){re.escape(p)}(?:s|es)?(?![a-z])")) for room, p in phrases)
+    nots = tuple(re.compile(rf"(?<![a-z]){re.escape(_norm(p))}(?:s|es)?(?![a-z])")
+                 for p in config.get("not_a_room") or [])
+    return (entries, dict(config.get("room_category") or {}), frozenset(config.get("room_caption_categories") or []),
+            nots)
+
+
+def room_order() -> list[str]:
+    """The rooms of a home, in the order a script would show them (the order of the table)."""
+    return list(load_yaml_config(CONFIG_FILE).get("rooms") or {})
+
+
+def room(category: str, caption: str = "") -> str:
+    """The room of a home a picture shows ("living", "bedroom" ...), or "". Read from the stored category
+    and the caption (the vision prompt is not asked for it): a caption's first room phrase names the room
+    in a picture of a home or of people; a picture of a home interior whose caption names none takes the
+    room of its category; a picture of anything else (an exterior, an amenity) has none."""
+    entries, by_category, caption_categories, nots = _rooms()
+    category = (category or "").strip().lower()
+    text = f" {_norm(caption)} "
+    for pattern in nots:
+        text = pattern.sub(" ", text)
+    if category in caption_categories:
+        found = [(m.start(), name) for name, pattern in entries for m in [pattern.search(text)] if m]
+        if found:
+            return min(found)[1]
+    return by_category.get(category, "")
+
+
+def is_view(topic: str, caption: str = "") -> bool:
+    """Whether a topic or caption speaks of the whole place seen from above or afar (an aerial view)."""
+    words = [_norm(w) for w in load_yaml_config(CONFIG_FILE).get("views") or []]
+    text = f" {_norm(topic)} {_norm(caption)} "
+    return any(re.search(rf"(?<![a-z]){re.escape(w)}", text) for w in words)
 
 
 def _norm(text: str) -> str:
