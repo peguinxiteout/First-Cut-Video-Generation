@@ -11,17 +11,18 @@ weights:
   duration: 0.07
   loudness: 0.06
   black_frames: 0.06
-  frozen: 0.05
+  frozen: 0.04
   narration_gaps: 0.05
-  safe_zones: 0.07
+  safe_zones: 0.06
   numbers: 0.12
   thumbnail: 0.04
-  upscale: 0.07
-  one_voice: 0.07
+  upscale: 0.06
+  one_voice: 0.06
   hook: 0.06
   chips: 0.07
   narration_picture: 0.08
   narration_evidence: 0.03
+  hold_length: 0.04
   repeated_photo: 0.04
 
 pass_at: 85
@@ -85,6 +86,9 @@ narration_picture:
 # Evidence: each amenity a line names, and each chip, is over a photograph whose tags AND caption both say it
 # (photo_tags.evidence). The planner only picks such photographs, so this warns for a plan made another way. Soft.
 narration_evidence: {}
+
+# How long a still is held (thresholds: `hold` in pacing.yaml). Soft: it lowers the score only.
+hold_length: {}
 
 # The same photograph in two shots one after the other: this many repeats or more warns.
 repeated_photo:

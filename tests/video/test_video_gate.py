@@ -461,7 +461,7 @@ def test_a_soft_check_failing_only_warns_while_the_score_holds():
 
 def test_many_soft_failures_drag_the_score_under_the_floor_and_fail_the_gate():
     result = gate.verdict(_checks(loudness="fail", frozen="fail", narration_gaps="fail", upscale="fail",
-                                  black_frames="warn", one_voice="warn", narration_evidence="fail"), CFG)
+                                  black_frames="warn", one_voice="warn", narration_evidence="fail", hold_length="fail"), CFG)
     assert result.quality_score < CFG["fail_below"] and result.gate_result == VideoGate.FAIL
 
 
@@ -662,3 +662,37 @@ def test_narration_evidence_is_soft_and_weighted():
     assert "narration_evidence" in CFG["weights"] and "narration_evidence" not in CFG["hard"]
     assert gate.verdict(_checks(narration_evidence="warn"), CFG).gate_result == VideoGate.WARN
     assert gate.verdict(_checks(narration_evidence="fail"), CFG).gate_result == VideoGate.WARN
+
+
+# -- hold length -----------------------------------------------------------------------------------------------------
+
+HOLD = load_yaml_config("video/pacing.yaml")["hold"]
+
+
+def test_the_hold_limits_are_in_pacing_yaml():
+    assert (HOLD["target_s"], HOLD["cap_s"], HOLD["warn_s"], HOLD["fail_s"]) == (3.5, 4.5, 4.5, 6.0)
+
+
+@pytest.mark.parametrize("longest,status", [(3.1, "pass"), (4.5, "pass"), (4.6, "warn"), (6.0, "warn"), (6.2, "fail")])
+def test_the_longest_photograph_hold_passes_up_to_the_cap_warns_up_to_six_and_fails_above(longest, status):
+    board = _board(3.0, longest, 3.0)
+    check = gate.check_hold_length(board, HOLD)
+    assert check.status == status and check.values["hold_s"] == pytest.approx(longest)
+    assert (check.shots == [2]) == (status != "pass") and f"held {longest:.1f} s (shot 2)" in check.detail
+
+
+def test_the_closing_card_is_not_a_photograph_hold():
+    board = Storyboard(shots=[Shot(index=0, seconds=3.0), Shot(index=1, kind="card", camera="still", seconds=8.0)])
+    assert gate.check_hold_length(board, HOLD).status == "pass"
+
+
+def test_a_video_with_no_photograph_shot_skips_the_hold_check():
+    board = Storyboard(shots=[Shot(index=0, kind="card", camera="still", seconds=5.0)])
+    assert gate.check_hold_length(board, HOLD).status == "skipped"
+
+
+def test_hold_length_is_soft_weighted_and_lowers_the_score_only():
+    assert CFG["weights"]["hold_length"] == pytest.approx(0.04) and "hold_length" not in CFG["hard"]
+    result = gate.verdict(_checks(hold_length="fail"), CFG)
+    assert result.gate_result == VideoGate.WARN and result.quality_score == pytest.approx(96.0)
+    assert gate.verdict(_checks(hold_length="warn"), CFG).quality_score == pytest.approx(98.0)

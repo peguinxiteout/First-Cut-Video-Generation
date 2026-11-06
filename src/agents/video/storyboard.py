@@ -10,9 +10,13 @@ The rule planner. The shots are the script's lines laid on a timeline:
       it (the one the script set aside, else another), and never an unrelated one;
       a general line gets a picture tagged exterior if one is left
     * a chip is printed only over a picture tagged with what the chip names
-    * a line that spans two shots gets two DIFFERENT photographs (both tagged with what it
-      needs, when it needs something); when no other photograph will do, the two shots become
-      one longer shot. The same photograph is never in two shots one after the other
+    * a line that spans two shots gets two DIFFERENT photographs. The second (a continuation)
+      takes, in this order: another photograph that shows what the line needs (tags and caption
+      agree); a general picture of the line's own scene (exterior, entrance, interior) that shows
+      no amenity; an unused general exterior or entrance picture. A photograph a later line has
+      claimed is never taken, nor another amenity's. Only when none is left do the two shots
+      become one longer shot, and the notes say so. The same photograph is never in two shots
+      one after the other
     * pictures that look alike (image_plan) are not shown twice; when there
       are fewer pictures than shots, a picture is shown again with a different
       crop and the opposite move, and the shot is marked `reuse`
@@ -27,6 +31,7 @@ one a model's plan will be put through before it is used.
 from __future__ import annotations
 
 import logging
+import math
 from pathlib import Path
 from typing import Optional
 
@@ -159,6 +164,29 @@ def _by_tags(lines: list, fresh: list, candidates: list[str], by_id: dict) -> Op
     return next((c for c in candidates if "exterior" in by_id[c].tags), candidates[0] if candidates else None)
 
 
+def _continue(carry: list, candidates: list[str], by_id: dict) -> tuple[Optional[str], str]:
+    """The picture for a shot that carries on a line about an amenity, and how it was found: "same" (another
+    photograph that shows what the line needs), "scene" (a general picture of the scene the line's own
+    photograph is of) or "general" (an exterior or entrance picture); None when none will do. `candidates`
+    are the unused pictures, best first, without the ones a later line has claimed. A general picture shows
+    no amenity: another amenity's photograph is never taken, and a weak tag (see photo_tags.evidence)
+    does not make a photograph one."""
+    for line in carry:
+        hit = next((c for c in candidates if set(line.tags) & set(by_id[c].tags)), None)
+        if hit:
+            return hit, "same"
+    amenities = set(photo_tags.names())
+    general = [c for c in candidates if by_id[c].read_by_vision and not set(by_id[c].tags) & amenities]
+    own = by_id.get(carry[0].photo) if carry else None
+    scene = next((t for t in (own.tags if own else []) if t in set(photo_tags.scene_names())), "")
+    if scene:
+        hit = next((c for c in general if scene in by_id[c].tags), None)
+        if hit:
+            return hit, "scene"
+    hit = next((c for c in general if {"exterior", "entrance"} & set(by_id[c].tags)), None)
+    return (hit, "general") if hit else (None, "")
+
+
 def _shift(focal_point: str, wide: bool) -> str:
     """The other side of the picture, for the second showing of a photograph."""
     try:
@@ -180,7 +208,8 @@ def run(brief: VideoBrief, script: VideoScript, assets: list[RankedAsset],
     usable = [a for a in assets if a.usable]                      # best first
     by_id = {a.image_id: a for a in usable}
     tagged = any(a.read_by_vision for a in usable)                # read by a vision model
-    desired = brief.n_shots - 1
+    hold = pacing["hold"]
+    desired = max(brief.n_shots - 1, math.ceil((brief.duration_s - end_card_s) / hold["target_s"]))
     allowance = pacing["max_reuse_per_photo"]
     count = 1 if not usable else min(desired, len(usable) + min(len(usable) * allowance, len(usable) - 1))
     if not usable:
@@ -210,6 +239,8 @@ def run(brief: VideoBrief, script: VideoScript, assets: list[RankedAsset],
         carry = [script.lines[i] for i in line_ids if i in owned and script.lines[i].tags]
         continuing = bool(shots) and shots[-1].kind == "real" and all(i in owned for i in line_ids)
         owned.update(line_ids)
+        reserved = {l.photo for i, l in enumerate(script.lines) if l.photo and i not in owned}   # a later line's picture
+        how = ""
         wanted = "exterior" if k == 0 else next((l.topic for l in lines if l.topic), "")
         asset: Optional[RankedAsset] = None
         reuse = False
@@ -226,7 +257,12 @@ def run(brief: VideoBrief, script: VideoScript, assets: list[RankedAsset],
             else:
                 candidates = allocator.candidates(k)
                 if tagged:
-                    choice = _by_tags(lines, fresh, candidates, by_id)
+                    previous_image = shots[-1].image_id if shots else ""
+                    pool = [c for c in candidates if c != previous_image and c not in reserved]
+                    if continuing and carry:
+                        choice, how = _continue(carry, pool, by_id)
+                    else:
+                        choice = _by_tags(lines, fresh, pool, by_id)
                 else:
                     choice = next((c for c in candidates if wanted and by_id[c].topic == wanted),
                                   candidates[0] if candidates else None)
@@ -251,10 +287,15 @@ def run(brief: VideoBrief, script: VideoScript, assets: list[RankedAsset],
             what = ", ".join(sorted({t for l in lines for t in l.tags})) or "the line"
             # By line and photograph, not by number: this shot is never made, so its number is the next shot's.
             said = f"'{lines[0].text}'" if lines else "a line"
-            notes.append(f"The shot for {said} would have shown "
-                         f"{before.source_path and Path(before.source_path).name or 'the same picture'} again: "
-                         f"no other photograph shows {what}, so it is joined to the shot before, which is longer.")
+            notes.append(f"The shot for {said} is joined to the shot before, which is now held {before.seconds:g} s: "
+                         f"no unused photograph shows {what} or fits as a general picture "
+                         f"({before.source_path and Path(before.source_path).name or 'the same picture'} stays on screen).")
             continue
+        if how in ("scene", "general") and asset is not None:
+            what = ", ".join(sorted({t for l in carry for t in l.tags})) or "it"
+            kind = "an interior" if "interior" in asset.tags else "an entrance" if "entrance" in asset.tags else "an exterior"
+            notes.append(f"The rest of '{carry[0].text}' plays over {asset.filename}, {kind} picture: "
+                         f"no other unused photograph shows {what}.")
         needed = fresh
         if asset is not None and asset.tags and needed:
             asked += 1
@@ -318,6 +359,12 @@ def run(brief: VideoBrief, script: VideoScript, assets: list[RankedAsset],
         if reuse:
             notes.append(f"Shot {n} shows {asset.filename} again, cropped from the other side.")
 
+    long_holds = [s for s in shots if s.kind == "real" and s.seconds > hold["cap_s"] + 0.05]
+    if long_holds:
+        longest = max(long_holds, key=lambda s: s.seconds)
+        notes.append(f"{len(long_holds)} shot(s) are held longer than {hold['cap_s']:g} s (the longest, "
+                     f"{Path(longest.source_path).name if longest.source_path else 'a photograph'}, {longest.seconds:g} s): "
+                     "there is no other photograph to show for the time. Add photographs, or shorten the video.")
     for chip, line_index in zip(script.chips, script.chip_lines):
         if chip not in shown_chips:
             topic = script.lines[line_index].topic

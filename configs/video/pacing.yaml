@@ -46,6 +46,17 @@ music_mood:
   mid: warm acoustic
   luxury: calm cinematic
 
+# How long a still may be held. The plan aims for target_s a shot (more shots when the pace would
+# make them longer) and a continuation shot takes another photograph rather than stretch the shot
+# before; cap_s is the longest the plan means to hold one, and a hold over it is said in the notes
+# (a photograph that is the only one left cannot be swapped). The quality gate measures the longest
+# hold on the finished timeline, closing card left out: pass up to warn_s, warn up to fail_s, fail above.
+hold:
+  target_s: 3.5
+  cap_s: 4.5
+  warn_s: 4.5
+  fail_s: 6.0
+
 # A photograph this small (its shorter side, in pixels) is not used for a
 # shot: stretched to a full frame it would look soft.
 min_photo_side_px: 500

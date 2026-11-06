@@ -152,11 +152,37 @@ def retime(durations: list[float], storyboard: Storyboard, duration_s: float, co
 
     starts, card_start, total = _layout(durations, lead, gap, tail, pre)
     photo_seconds = _split(storyboard, starts, card_start, pre)
+    floor_note = _lift_to_floor(photo_seconds, v.get("min_other_shot_s", 1.0))
+    if floor_note:
+        notes.append(floor_note)
     hook_note = _give_the_hook_its_minimum(photo_seconds, config.get("min_hook_s", 0.0), v.get("min_other_shot_s", 1.0))
     if hook_note:
         notes.append(hook_note)
     seconds = photo_seconds + [total - card_start]
     return Timing(starts, [round(s, 3) for s in seconds], round(total, 3), notes, defects)
+
+
+def _lift_to_floor(seconds: list[float], floor: float) -> str:
+    """Raise every shot under `floor` to it (in place), taking the time from the shots that have more, in
+    proportion to what each has above it. The sum is unchanged. A short line that carries a shot of its own,
+    or a line shared by several shots, can leave one a fraction of a second long. A note if it was done, or
+    if the shots had no time to give."""
+    short = [i for i, s in enumerate(seconds) if s < floor - EPSILON]
+    if not short:
+        return ""
+    need = sum(floor - seconds[i] for i in short)
+    donors = {i: seconds[i] - floor for i, s in enumerate(seconds) if s > floor + EPSILON}
+    spare = sum(donors.values())
+    take = min(need, spare)
+    if take <= EPSILON:
+        return f"{len(short)} shot(s) are under {floor:g} s and the others have no time to give."
+    lack = {i: floor - seconds[i] for i in short}
+    for i, extra in donors.items():
+        seconds[i] -= take * extra / spare
+    for i, wanted in lack.items():
+        seconds[i] += take * wanted / need
+    left = " The others had no more to give." if take < need - EPSILON else ""
+    return f"{len(short)} shot(s) were under {floor:g} s and were lengthened to it, the time taken from longer shots.{left}"
 
 
 def _give_the_hook_its_minimum(seconds: list[float], minimum: float, floor: float) -> str:

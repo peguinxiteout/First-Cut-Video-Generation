@@ -406,6 +406,21 @@ def check_narration_evidence(script: VideoScript, board: Storyboard) -> GateChec
                   "whose tags and caption both say it" if checked else "no line or chip names an amenity")
 
 
+def check_hold_length(board: Storyboard, cfg: dict) -> GateCheck:
+    """How long a still is held: the longest photograph shot on the finished timeline (the closing card is
+    left out). A plan quality measure, soft: it lowers the score and never fails the gate by itself."""
+    real = [s for s in board.shots if s.kind == "real"]
+    if not real:
+        return _check("hold_length", "skipped", "the video has no photograph shot")
+    longest = max(real, key=lambda s: s.seconds)
+    status = _by_limits(longest.seconds, cfg["warn_s"], cfg["fail_s"])
+    detail = f"the longest photograph is held {longest.seconds:.1f} s (shot {longest.index + 1})"
+    if status == "pass":
+        return _check("hold_length", "pass", f"{detail}; the limit is {cfg['warn_s']:g} s", hold_s=round(longest.seconds, 3))
+    return _check("hold_length", status, f"{detail}; the limit is {cfg['warn_s']:g} s, and over {cfg['fail_s']:g} s fails",
+                  [longest.index + 1], hold_s=round(longest.seconds, 3))
+
+
 def check_repeated_photo(board: Storyboard, cfg: dict) -> GateCheck:
     repeats = [(a, b) for a, b in zip(board.shots, board.shots[1:])
                if a.kind == "real" and b.kind == "real" and a.image_id and a.image_id == b.image_id]
@@ -483,6 +498,7 @@ def evaluate(inputs: GateInputs, measurements: Optional[VideoMeasurements] = Non
               ("narration_picture", lambda: check_narration_picture(inputs.script, inputs.storyboard,
                                                                     cfg["narration_picture"])),
               ("narration_evidence", lambda: check_narration_evidence(inputs.script, inputs.storyboard)),
+              ("hold_length", lambda: check_hold_length(inputs.storyboard, load_yaml_config("video/pacing.yaml")["hold"])),
               ("repeated_photo", lambda: check_repeated_photo(inputs.storyboard, cfg["repeated_photo"]))]
     for name, step in steps:
         try:

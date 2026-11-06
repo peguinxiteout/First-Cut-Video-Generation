@@ -208,3 +208,33 @@ def test_with_no_music_provider_there_is_no_music_and_no_beats(tmp_path):
                        MusicService([], tmp_path / "music_cache"))
     assert result.music_track is None and result.beat_times == []
     assert result.music_info.provider == "none"
+
+
+# -- no shot is left shorter than its floor -----------------------------------------------------------------------
+
+def test_a_short_line_shared_by_two_shots_does_not_leave_either_under_a_second():
+    board = _board(((0,), (1,), (1,), ()))
+    t = _timing([3.0, 0.8, 8.0], 15, board)
+    photo = t.shot_seconds[:-1]
+    assert min(photo) >= 1.0 - 1e-6
+    assert sum(t.shot_seconds) == pytest.approx(t.total_s, abs=0.01)
+    assert any("were under 1 s and were lengthened to it" in n for n in t.notes)
+
+
+def test_shots_over_the_floor_are_left_as_they_are():
+    t = _timing([1.5, 2.5, 2.5, 2.0], 15)
+    assert not any("under 1 s" in n for n in t.notes)
+
+
+def test_the_floor_takes_its_time_from_the_longer_shots_in_proportion_to_what_they_have_above_it():
+    seconds = [0.4, 3.0, 5.0]
+    note = voice._lift_to_floor(seconds, 1.0)
+    assert seconds == pytest.approx([1.0, 2.8, 4.6]) and sum(seconds) == pytest.approx(8.4)
+    assert note.startswith("1 shot(s) were under 1 s and were lengthened to it")
+
+
+def test_when_the_others_have_nothing_to_give_the_short_shots_stay_short_and_it_is_said():
+    seconds = [0.5, 0.9, 1.0]
+    note = voice._lift_to_floor(seconds, 1.0)
+    assert seconds == [0.5, 0.9, 1.0] and note == "2 shot(s) are under 1 s and the others have no time to give."
+    assert voice._lift_to_floor([2.0, 3.0], 1.0) == ""
