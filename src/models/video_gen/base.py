@@ -55,6 +55,7 @@ class ProviderSpec:
     max_duration_s: float = 8.0
     supports_first_last_frame: bool = False
     hidden: bool = False
+    offered: bool = True                         # False: listed, never available (not wired into a run yet)
     endpoint: str = ""
     params: dict = field(default_factory=dict)
     # What the selector shows about a vendor's model. Nothing here is read by an adapter.
@@ -86,6 +87,7 @@ class ImageToVideoRequest:
     image_path: Path
     end_image_path: Optional[Path] = None        # a closing keyframe, for providers that take one
     prompt: str = ""                             # the motion, in words
+    negative_prompt: str = ""                    # what the motion must not show, for models that take it
     camera: str = "push_in"                      # one of CAMERA_MOVES
     duration_s: float = 3.0
     width: int = 1080

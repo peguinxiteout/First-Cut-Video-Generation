@@ -10,6 +10,8 @@
 #   max_duration_s             the longest clip one call returns
 #   supports_first_last_frame  whether a closing keyframe can be sent
 #   hidden                     kept out of the selector (tests, development)
+#   offered                    false: listed but never available or picked by Auto (the adapter is
+#                              registered and only scripts call it; true once it is wired into a run)
 #   endpoint, params           handed to the adapter as written
 #
 # What the selector shows about a vendor's model (no adapter reads these):
@@ -50,36 +52,59 @@ providers:
     supports_first_last_frame: true
     hidden: true
 
-  # The three below go through fal.ai (one FAL_KEY). Their adapter arrives in
-  # Phase 3, so until then each shows as unavailable ("adapter not installed").
-  # The endpoint ids are placeholders to be filled in from fal's model pages.
+  # The three below go through fal.ai (one FAL_KEY), adapter models/video_gen/fal.py. Endpoints and
+  # prices from fal's model pages, read 7 Nov 2026. Not offered yet: a video run never reaches fal
+  # (policy.yaml blanks FAL_KEY and sets pan-and-zoom); scripts/test_ai_motion.py calls them directly.
+  # MiniMax H3 Max: billed per second of video made (a clip runs about 0.7 s over what is asked).
+  # Standard rates from 16 Nov 2026; until 15 Nov they are 30% lower (768P $0.056/s).
   minimax_h3_max:
     label: "MiniMax H3 Max"
     vendor: "fal.ai"
     adapter: fal
-    endpoint: TODO
+    offered: false
+    endpoint: minimax/h3-max/image-to-video
     key_env: FAL_KEY
     auto_priority: 10
-    cost_per_second: 0.03
+    cost_per_second: 0.08
+    cost_by_resolution: {480P: 0.05, 768P: 0.08, 1080P: 0.16}
     max_duration_s: 10
     supports_first_last_frame: true
+    price_source: "fal.ai/models/minimax/h3-max/image-to-video, 7 Nov 2026"
+    params:
+      input: {resolution: 768P, prompt_expansion_mode: disabled}
+      end_frame_field: end_image_url
+      duration: {kind: seconds, min: 2, overrun_s: 0.7}
+      negative_prompt: false
+      billing: per_second
 
+  # Kling 2.5 Turbo Pro: $0.35 for 5 s, $0.07 each second over; durations "5" or "10" only.
   kling_25_turbo_pro:
     label: "Kling 2.5 Turbo Pro"
     vendor: "fal.ai"
     adapter: fal
-    endpoint: TODO
+    offered: false
+    endpoint: fal-ai/kling-video/v2.5-turbo/pro/image-to-video
     key_env: FAL_KEY
     auto_priority: 20
     cost_per_second: 0.07
+    cost_per_clip: 0.35
+    clip_s: 5
     max_duration_s: 10
     supports_first_last_frame: true
+    price_source: "fal.ai/models/fal-ai/kling-video/v2.5-turbo/pro/image-to-video, 7 Nov 2026"
+    params:
+      input: {cfg_scale: 0.5}
+      end_frame_field: tail_image_url
+      duration: {kind: choices, choices: ["5", "10"]}
+      negative_prompt: true
+      billing: per_clip
 
-  # Premium: chosen by name, not by Auto. Price not set yet.
+  # Premium: chosen by name, not by Auto. Endpoint and price not set yet, so it stays unavailable.
   seedance_2:
     label: "Seedance 2.0"
     vendor: "fal.ai"
     adapter: fal
+    offered: false
     endpoint: TODO
     key_env: FAL_KEY
     auto_priority: null

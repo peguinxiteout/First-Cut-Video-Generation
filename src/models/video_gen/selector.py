@@ -8,6 +8,8 @@ before a run), not remembered.
 
 A provider is available when
     its adapter is registered         (else "adapter not installed")
+    it is offered                     (else "not offered yet": registered, called by scripts only)
+    its endpoint is filled in         (else "endpoint not set")
     its key resolves                  (else "no key: set FAL_KEY")
     no quota marker is active         (else "allowance spent ...")
 
@@ -79,7 +81,8 @@ def load_catalog() -> dict[str, ProviderSpec]:
             key_env=entry.get("key_env") or None, auto_priority=entry.get("auto_priority"),
             cost_per_second=entry.get("cost_per_second"), max_duration_s=float(entry.get("max_duration_s", 8)),
             supports_first_last_frame=bool(entry.get("supports_first_last_frame", False)),
-            hidden=bool(entry.get("hidden", False)), endpoint=str(entry.get("endpoint") or ""),
+            hidden=bool(entry.get("hidden", False)), offered=bool(entry.get("offered", True)),
+            endpoint=str(entry.get("endpoint") or ""),
             params=dict(entry.get("params") or {}), vendor=str(entry.get("vendor") or ""),
             model_id=str(entry.get("model_id") or ""), cost_basis=str(entry.get("cost_basis") or ""),
             cost_per_clip=entry.get("cost_per_clip"), clip_s=entry.get("clip_s"),
@@ -150,6 +153,10 @@ def mark_quota(provider_id: str, settings=None, now: Optional[datetime] = None) 
 def availability(spec: ProviderSpec, settings=None, now: Optional[datetime] = None) -> tuple[bool, str]:
     if spec.adapter not in registry.ADAPTERS:
         return False, "adapter not installed"
+    if not spec.offered:
+        return False, "not offered yet"
+    if spec.endpoint.strip().upper() == "TODO":
+        return False, "endpoint not set"
     if spec.key_env and not resolve_key(spec.key_env, settings):
         return False, f"no key: set {spec.key_env}"
     until = quota_until(spec.id, settings, now)

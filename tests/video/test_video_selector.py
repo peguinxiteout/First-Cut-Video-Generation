@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
@@ -11,12 +12,16 @@ from src.models.video_gen.mock import MockVideoProvider
 
 
 class FakeFal(MockVideoProvider):
-    """Stands in for the fal adapter, which arrives in Phase 3."""
+    """Stands in for the fal adapter, so nothing here can reach fal."""
 
 
 @pytest.fixture
 def fal_installed(monkeypatch):
+    """The fal models as they will be once wired into a run: a (fake) adapter, and offered."""
     monkeypatch.setitem(registry.ADAPTERS, "fal", FakeFal)
+    real = selector.load_catalog
+    monkeypatch.setattr(selector, "load_catalog", lambda: {
+        k: dataclasses.replace(v, offered=True) for k, v in real().items()})
 
 
 def _by_id(duration=15, **kwargs):
@@ -33,11 +38,12 @@ def test_the_list_is_auto_then_each_provider_then_pan_and_zoom():
     assert "mock" not in ids                       # hidden
 
 
-def test_before_the_fal_adapter_exists_the_paid_models_are_listed_as_unavailable():
+def test_until_they_are_offered_the_fal_models_are_listed_as_unavailable(monkeypatch):
+    monkeypatch.setenv("FAL_KEY", "k")                     # a key does not change it
     options = _by_id()
     for name in ("minimax_h3_max", "kling_25_turbo_pro", "seedance_2"):
         assert options[name].available is False
-        assert options[name].reason == "adapter not installed"
+        assert options[name].reason == "not offered yet"
     assert options["kenburns"].available and options["kenburns"].label == "Pan-and-zoom (free)"
     assert options["auto"].available
     assert options["auto"].reason == "No video model is available; uses pan-and-zoom"
@@ -45,11 +51,11 @@ def test_before_the_fal_adapter_exists_the_paid_models_are_listed_as_unavailable
 
 def test_the_estimate_is_the_rate_times_the_duration_and_none_when_no_price_is_set():
     options = _by_id(15)
-    assert options["minimax_h3_max"].est_cost_usd == pytest.approx(0.45)
+    assert options["minimax_h3_max"].est_cost_usd == pytest.approx(1.20)       # $0.08 a second at 768P
     assert options["kling_25_turbo_pro"].est_cost_usd == pytest.approx(1.05)
     assert options["seedance_2"].est_cost_usd is None
     assert options["kenburns"].est_cost_usd == 0.0
-    assert _by_id(10)["minimax_h3_max"].est_cost_usd == pytest.approx(0.30)
+    assert _by_id(10)["minimax_h3_max"].est_cost_usd == pytest.approx(0.80)
 
 
 def test_the_other_vendors_models_are_listed_but_not_available_yet_and_never_picked_by_auto():
@@ -115,14 +121,15 @@ def test_with_a_key_the_paid_models_are_available_and_auto_takes_the_lowest_prio
     options = _by_id(15)
     assert options["minimax_h3_max"].available and options["kling_25_turbo_pro"].available
     assert options["auto"].reason == "Uses MiniMax H3 Max"
-    assert options["auto"].est_cost_usd == pytest.approx(0.45)
+    assert options["auto"].est_cost_usd == pytest.approx(1.20)
     assert selector.resolve("auto", 15).ids == ("minimax_h3_max", "kenburns")
 
 
 def test_auto_never_picks_a_provider_without_a_priority(fal_installed, monkeypatch):
     monkeypatch.setenv("FAL_KEY", "k")
     assert "seedance_2" not in selector.resolve("auto").ids
-    assert selector.resolve("seedance_2").ids == ("seedance_2", "kenburns")     # but it can be chosen
+    plan = selector.resolve("seedance_2")                  # it could be chosen, once it has an endpoint
+    assert plan.ids == ("kenburns",) and "endpoint not set" in plan.note
 
 
 def test_a_key_in_settings_counts_as_well_as_one_in_the_environment(fal_installed, tmp_path):
@@ -175,7 +182,7 @@ class TestChains:
     def test_a_named_provider_that_cannot_run_gives_pan_and_zoom_and_says_why(self):
         plan = selector.resolve("minimax_h3_max", 15)
         assert plan.ids == ("kenburns",)
-        assert plan.note == "MiniMax H3 Max is unavailable (adapter not installed); using pan-and-zoom"
+        assert plan.note == "MiniMax H3 Max is unavailable (not offered yet); using pan-and-zoom"
 
     def test_the_choice_is_case_insensitive_and_defaults_to_the_setting(self, monkeypatch):
         assert selector.resolve("  KenBurns ").ids == ("kenburns",)

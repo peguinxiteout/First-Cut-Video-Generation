@@ -1,0 +1,52 @@
+# Keyframes for an image-to-video model (agents/video/keyframe.py): a photograph of any shape made
+# into the model's input in the video's shape, without changing what the photograph shows.
+#
+#   crop     a window of the video's shape around the subject, enlarged to the model's input size
+#   extend   the whole photograph, untouched, in the middle; the missing sides are filled by an
+#            outpaint model and the keyframe is marked as holding generated areas
+#   travel   two real windows of one wide photograph (start and end), for a model that takes a
+#            first and a last frame
+#
+# The model's input size, per aspect. 720x1280 is the 9:16 input the fal video models take well.
+input_size:
+  "9:16": [720, 1280]
+  "16:9": [1280, 720]
+  "1:1": [960, 960]
+  "4:5": [864, 1080]
+
+# Which mode a photograph should use (keyframe.recommend). Read in this order:
+recommend:
+  same_shape_tolerance: 0.10    # the photograph's aspect within 10% of the video's: crop, nothing is lost
+  crop_min_detail: 0.60         # crop when the window keeps this share of the photograph's detail (focal.py's measure)
+  crop_max_enlargement: 2.0     #   ... and enlarges its pixels no more than this
+  travel_min_aspect_ratio: 1.6  # travel when the photograph is at least this many times wider than the video's
+                                # shape (1.89:1 against 9:16 is 3.4) and the subject does not fit one window
+  # otherwise: extend
+  soft_enlargement: 3.0         # above this any mode looks soft: said in the reasons
+
+# The share of a photograph's detail that counts as its subject, for the travel windows: the columns
+# (or rows) holding the middle 80% of the detail.
+subject_share: 0.80
+
+travel:
+  min_shift: 0.25               # the end window moves at least this share of a window's width
+  max_shift: 1.00               # and at most a whole window (beyond it the model has to invent the middle)
+
+# Outpaint on fal (fal-ai/flux-2-pro/outpaint, https://fal.ai/models/fal-ai/flux-2-pro/outpaint/api,
+# read 7 Nov 2026). No prompt field: it only continues the picture past its edges.
+# Price as printed on the model page: $0.03 for the first megapixel of output, plus $0.015 per
+# extra megapixel of input and output, rounded up to the nearest megapixel.
+outpaint:
+  endpoint: fal-ai/flux-2-pro/outpaint
+  params:
+    mode: high
+    output_format: png
+    enable_safety_checker: true
+  max_expand_px: 2048
+  price_first_mp: 0.03
+  price_extra_mp: 0.015
+  # The photograph's band in the answer against what was sent (0-255 per channel):
+  band_exact_mean: 1.0          # at or under: the model kept the pixels
+  band_near_mean: 6.0           # at or under: near enough; the original pixels are put back over the band
+                                # above: the model changed the photograph, the keyframe is refused
+  band_search_px: 6             # the band may sit this many pixels off where it was placed

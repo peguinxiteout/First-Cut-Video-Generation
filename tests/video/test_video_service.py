@@ -178,4 +178,4 @@ class TestBuilding:
     def test_a_named_model_that_cannot_run_carries_its_reason(self):
         service = get_video_service("seedance_2", 15)
         assert [p.id for p in service.providers] == ["kenburns"]
-        assert "adapter not installed" in service.note
+        assert "not offered yet" in service.note

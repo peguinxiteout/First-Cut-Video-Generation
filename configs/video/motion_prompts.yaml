@@ -1,0 +1,37 @@
+# Words for an image-to-video model (agents/video/motion_prompt.py). The model is asked for camera
+# movement only: the photograph is the property, and the clip must keep it as it is.
+#
+# Two styles, set per model in providers.yaml (params.negative_prompt):
+#   with_negative   the positive prompt plus `negative` in the model's negative_prompt field (Kling)
+#   positive_only   no negative field (MiniMax H3 Max), and no "no", "not" or "without" in the
+#                   prompt either: a model with no negative field tends to read "no people" as
+#                   "people". Every rule is said as what stays, not as what must not appear.
+#
+# $move is the camera phrase below; $subject is what the camera is on (subjects, by scene).
+
+camera:
+  push_in: "Slow, steady camera push-in towards $subject."
+  pull_out: "Slow, steady camera pull-back from $subject."
+  pan_left: "Slow, steady camera pan to the left across $subject."
+  pan_right: "Slow, steady camera pan to the right across $subject."
+  tilt_up: "Slow, steady camera tilt upwards along $subject."
+  tilt_down: "Slow, steady camera tilt downwards along $subject."
+  still: "The camera holds still on $subject, with only a gentle breath of movement."
+
+subjects:
+  exterior: "the building"
+  interior: "the room"
+  amenity: "the amenity"
+  view: "the view"
+  any: "the scene"
+
+shot: |
+  $move The scene stays exactly as photographed: the same building, the same rooms and furniture, the same planting, the same people in the same places, the same sky and light. Every surface, window and line keeps its shape and position. Smooth, stable, realistic camera motion only, like a gimbal shot on a real site.
+
+transition: |
+  One continuous camera move from the first view to the second; both places stay exactly as photographed. The buildings, rooms, planting, people and sky of each view keep their shape, position and colour. Smooth, stable, realistic camera motion, like a single gimbal shot on a real site.
+
+negative: "new people, new objects, added signs, text, logos, watermark, changes to the building, extra floors, extra windows, warped or bending architecture, morphing, melting, distortion, flicker, blur, low quality"
+
+# Words that may not appear in a positive_only prompt (checked by the tests and by build()).
+negation_words: ["no", "not", "without", "never", "don't", "avoid", "nothing", "none"]

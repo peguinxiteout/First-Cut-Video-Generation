@@ -423,9 +423,10 @@ def test_a_property_that_names_its_own_length_sets_the_estimate_until_the_toolba
 
 
 def _rows(at) -> dict[str, str]:
-    """The "not available yet" rows of the model list, by the label each starts with (the escapes of a dollar
-    sign undone)."""
-    rows = [str(c.value).replace("\\$", "$") for c in at.caption if " · not available yet" in str(c.value)]
+    """The "not available yet" and "not offered yet" rows of the model list, by the label each starts with (the
+    escapes of a dollar sign undone)."""
+    rows = [str(c.value).replace("\\$", "$") for c in at.caption
+            if " · not available yet" in str(c.value) or " · not offered yet" in str(c.value)]
     return {row.split(" · ")[0]: row for row in rows}
 
 
@@ -440,7 +441,8 @@ def test_the_model_menu_offers_what_can_run_and_lists_the_rest_as_not_available_
     assert list(rows) == ["MiniMax H3 Max", "Kling 2.5 Turbo Pro", "Seedance 2.0", "Magic Hour Wan 2.2 I2V",
                           "8Scale Wan 2.2 14B I2V", "Nodaro Seedance 2 Fast", "Nodaro Veo 3.1 Lite",
                           "Eternal AI Wan 2.2 I2V"]
-    assert "via fal.ai" in rows["MiniMax H3 Max"] and "about $0.45" in rows["MiniMax H3 Max"]       # 0.03 a second, 15 s
+    assert "via fal.ai" in rows["MiniMax H3 Max"] and "about $1.20" in rows["MiniMax H3 Max"]       # 0.08 a second, 15 s
+    assert "not offered yet" in rows["MiniMax H3 Max"]
     assert "price not set" in rows["Seedance 2.0"]
     assert at.radio(key="vt_model").disabled is False
     at.checkbox(key="vt_offline").check().run()
@@ -465,7 +467,7 @@ def test_a_longer_video_is_estimated_longer(folder):
     at = _app().run()
     at.radio(key="vt_length").set_value(60).run()
     rows = _rows(at)
-    assert "about $1.80" in rows["MiniMax H3 Max"]
+    assert "about $4.80" in rows["MiniMax H3 Max"]
     assert "from about $0.20" in rows["8Scale Wan 2.2 14B I2V"] and "from about $0.30" in rows["Eternal AI Wan 2.2 I2V"]
 
 

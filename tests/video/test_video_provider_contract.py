@@ -31,7 +31,7 @@ def test_with_no_key_only_a_provider_that_needs_none_is_available(adapter, catal
 
 @pytest.mark.parametrize("adapter", sorted(registry.ADAPTERS))
 def test_with_a_key_an_adapter_that_needs_one_is_available(adapter, catalog):
-    for spec in (s for s in catalog.values() if s.adapter == adapter and s.key_env):
+    for spec in (s for s in catalog.values() if s.adapter == adapter and s.key_env and s.endpoint != "TODO"):
         assert registry.ADAPTERS[adapter](spec, "k").is_available()
 
 
@@ -56,10 +56,12 @@ def test_limits_and_prices_come_from_the_spec_not_the_class(catalog):
     assert unpriced.estimate_cost(10) is None
 
 
-def test_every_provider_entry_names_an_adapter_and_the_fal_ones_are_not_installed_yet(catalog):
+def test_every_provider_entry_names_an_adapter_and_the_fal_ones_are_registered_but_not_offered(catalog):
     for spec in catalog.values():
         assert spec.adapter
     fal = [s for s in catalog.values() if s.adapter == "fal"]
     assert {s.id for s in fal} == {"minimax_h3_max", "kling_25_turbo_pro", "seedance_2"}
     assert all(s.key_env == "FAL_KEY" for s in fal)
-    assert "fal" not in registry.ADAPTERS
+    assert "fal" in registry.ADAPTERS
+    assert not any(s.offered for s in fal)
+    assert all(s.offered for s in catalog.values() if s.adapter != "fal")

@@ -74,6 +74,7 @@ class VideoService:
             "prompt": request.prompt, "camera": request.camera, "seconds": request.duration_s,
             "w": request.width, "h": request.height, "fps": request.fps, "focal": request.focal,
             "seed": request.seed,
+            **({"negative": request.negative_prompt} if request.negative_prompt else {}),
         }, sort_keys=True)
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:24]
 
