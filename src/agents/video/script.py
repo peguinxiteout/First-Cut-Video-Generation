@@ -149,7 +149,8 @@ def best_fit(feature: Feature, pictures: list[RankedAsset]) -> Optional[Fit]:
 def _spoken(text: str) -> str:
     """Narration is read aloud: a slash ("tennis/pickleball") is said as "and".
     On-screen text keeps it."""
-    return re.sub(r"\s*/\s*", " and ", text)
+    text = re.sub(r"\s*/\s*", " and ", text)
+    return re.sub(r"([.!?])\.+", r"\1", text)             # a frame's full stop after a call to action that has its own
 
 
 def _opener(frame: str) -> str:
@@ -201,7 +202,7 @@ class _Writer:
         self.positioning = strategy.for_category(brief.category)
         self.content = facts.build(prop, brief.category)
         self.guard = VideoGuard(prop, knowledge, self.content, self.positioning)
-        self.values = {**slots(self.content, self.positioning), **video_slots.video_slots(prop), "cta": brief.cta_text}
+        self.values = {**slots(self.content, self.positioning), **video_slots.video_slots(prop), "cta": brief.cta_text.rstrip(". ")}
         self.min_words = self.templates["line_budget"]["min_words"]
         self.max_claim_words = self.templates["line_budget"]["max_claim_words"]
         self.rng = random.Random(zlib.crc32(self.content.name.encode("utf-8")))

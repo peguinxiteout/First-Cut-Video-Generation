@@ -152,7 +152,8 @@ def resolve_property_dir(property_id: str) -> Path:
 
 def start_plan(property_id: str, overrides: Optional[dict] = None, *, offline: bool = False, draft: bool = False,
                refresh_ledger: bool = False, auto_approve: bool = False, prompt: str = "", brief_source: str = "",
-               brief_notes: Optional[list[str]] = None, sources: Optional[dict[str, str]] = None) -> str:
+               brief_notes: Optional[list[str]] = None, sources: Optional[dict[str, str]] = None,
+               recipe_id: str = "") -> str:
     """Creates the record and starts the plan job; returns the video id at once.
     With `auto_approve` the job is the full one: it plans and then produces
     without stopping for approval. `prompt`, `brief_source` and `brief_notes`
@@ -175,7 +176,7 @@ def start_plan(property_id: str, overrides: Optional[dict] = None, *, offline: b
         request=VideoRequest(property_id=folder.name, overrides=given, offline=offline, draft=draft,
                              refresh_ledger=refresh_ledger, auto_approve=auto_approve, prompt=prompt,
                              brief_source=brief_source, brief_notes=list(brief_notes or []),
-                             sources=dict(sources or {})))
+                             sources=dict(sources or {}), recipe_id=recipe_id))
     (repository.video_output_dir(video_id) / "work").mkdir(parents=True, exist_ok=True)
     repository.begin_job(record)
     _launch_or_fail(record, "full" if auto_approve else "plan")

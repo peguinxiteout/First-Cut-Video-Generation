@@ -32,6 +32,7 @@ from pydantic import ValidationError
 
 from src.agents.video import brief as brief_agent
 from src.agents.video import layout as layout_agent
+from src.agents.video import recipes
 from src.core.config import load_yaml_config, settings
 from src.core.exceptions import IngestionError, JobBusyError, JobError
 from src.data import video_repository as repository
@@ -556,7 +557,8 @@ def _approval(video_id: str) -> None:
             new_id = video_jobs.start_plan(request.property_id, request.overrides, offline=request.offline,
                                            draft=request.draft, refresh_ledger=request.refresh_ledger,
                                            prompt=request.prompt, brief_source=request.brief_source,
-                                           brief_notes=request.brief_notes, sources=request.sources)
+                                           brief_notes=request.brief_notes, sources=request.sources,
+                                           recipe_id=request.recipe_id)
         except JobBusyError as exc:
             busy_notice(exc)
         except JobError as exc:
@@ -600,7 +602,7 @@ SOURCE_WORDS = {"model": "Read by the model, then checked against the property's
                 "rules": "Read by built-in rules (the model was not used)."}
 
 
-SOURCE_LABELS = {"toolbar": "Toolbar", "form": "Form (changed by you)", "prompt": "Your prompt",
+SOURCE_LABELS = {"toolbar": "Toolbar", "form": "Form (changed by you)", "prompt": "Your prompt", "recipe": "Recipe",
                  "saved defaults": "Saved defaults (video_input.json)", "default": "Built-in default"}
 NOT_RECORDED = "Not recorded (made before sources were kept)"
 
@@ -627,6 +629,9 @@ def _prompt_panel(video_id: str) -> None:
     if request is None or not request.prompt.strip():
         return
     with st.expander("Your prompt"):
+        recipe = recipes.get(request.recipe_id) if request.recipe_id else None
+        if recipe:
+            st.caption(f"Started from the recipe: {recipe.name}")
         st.text(request.prompt)
         if request.brief_source:
             st.caption(SOURCE_WORDS.get(request.brief_source, request.brief_source))

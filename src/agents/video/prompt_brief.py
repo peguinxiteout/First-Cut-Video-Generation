@@ -50,7 +50,8 @@ _STOP = {"the", "a", "an", "and", "of", "with", "for", "in", "on", "to", "at", "
          "their"}
 _QUOTED = re.compile(r"[“\"]([^”\"]{4,120})[”\"]")
 _SENTENCES = re.compile(r"(?<=[.!?])\s+|\n+")
-_NOT_A_LENGTH = r"(?!\s+(?:from|away|walk|drive|to|by|of|floor|level)\b)"   # "2 minutes from the metro" is a distance
+# "2 minutes from the metro" and "5 minutes to the metro" are distances; "15 seconds to give buyers a tour" is not
+_NOT_A_LENGTH = r"(?!\s+(?:from|away|walk|drive|to\s+(?:the|a|an|our|your|its|this|that)|by|of|floor|level)\b)"
 _CLAUSE = re.compile(r"\s+(?:for|with|in|at|on|to|by|using|from|that|which|while|so|but|then|as)\b", re.I)
 
 
@@ -391,26 +392,34 @@ def _residual(sentence: str, filler: set[str]) -> str:
     return ", ".join(clauses)
 
 
+LENGTH_NOTE = "Length taken from your prompt."
+
+
 def _direction(text: str, cfg: dict, cta: Optional[str], facts: _Facts, notes: list[str]) -> Optional[str]:
     """What is left of the prompt once the rules have read what they can: sentences about a call to action,
     quoted lines, highlight lists and what the video cannot do are taken out, and from the others the words
     the rules read (length, shape, audience, objective, captions, music) and the little words around them.
     Nothing left: None. A sentence with a figure that is not a fact (a price, a discount) is not passed on
     either: direction steers the music, but it is not the place for a claim. The length the prompt names does
-    not count as a figure."""
+    not count as a figure, and nor does a second mention of it: that sentence is dropped with the note that
+    the length was taken from the prompt."""
     not_used = _phrases([w for family in cfg["not_used"] for w in family["words"]])
     cues = _phrases(cfg["cta_cues"])
     filler = {"", *(str(w).lower() for w in cfg["filler"])}
     masked = text
     for start, end in _consumed(text, cfg):
         masked = masked[:start] + " " * (end - start) + masked[end:]
+    read_lengths = {fig for a, b, _ in _length_matches(text, cfg) for fig in guard.figures(text[a:b])}
     kept, claims = [], []
     for sentence in (s.strip() for s in _SENTENCES.split(_QUOTED.sub(" ", masked))):
         if (not sentence or not_used.search(sentence) or _cue_items(sentence, cfg)
                 or (cta and (cues.search(sentence) or cta.lower() in sentence.lower()))):
             continue
         if guard.unknown_figure(sentence, facts.figures, facts.words):
-            claims.append(sentence.rstrip(".!? "))
+            if guard.unknown_figure(sentence, facts.figures | read_lengths, facts.words):
+                claims.append(sentence.rstrip(".!? "))
+            elif LENGTH_NOTE not in notes:
+                notes.append(LENGTH_NOTE)
             continue
         left = _residual(sentence, filler).rstrip(".!? ")
         if left:

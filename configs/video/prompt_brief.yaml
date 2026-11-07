@@ -89,7 +89,7 @@ objective:
 tone_synonyms:
   warm: [friendly, homely, welcoming, cosy, cozy, heartwarming]
   confident: [bold, energetic, dynamic, punchy, upbeat]
-  refined: [elegant, luxurious, luxury, sophisticated, classy, premium, high-end, high end]
+  refined: [elegant, luxurious, luxury, sophisticated, classy, premium, upscale, high-end, high end]
 
 # A tone word within two words of one of these, in the same clause, is about light or colour, not about the voice
 # of the narration, and does not count ("warm natural lighting", "soft warm light", "cool tones").
@@ -137,7 +137,10 @@ weak_words: [kid, kids, child, children, tree, trees, greenery, green, garden, g
 # Creative direction is what is left; a clause with only these left is dropped.
 filler: [make, makes, create, produce, build, a, an, the, for, to, of, with, and, or, it, its, this, that, is, be,
          please, i, we, us, me, my, our, want, need, like, video, videos, film, clip, ad, advert, version, too, also,
-         add, use, using, in, on, at, by, from, as, so, just, one]
+         add, use, using, in, on, at, by, from, as, so, just, one,
+         # words that describe the request itself, not how the video should look or sound
+         am, are, planning, generate, marketing, runs, run, give, gives, potential, buyers, quick, quickly, engaging,
+         property]
 
 # Things a prompt can say that this video cannot do. A sentence with one is not passed on as creative
 # direction, and the person is told. The note ends with the words found.

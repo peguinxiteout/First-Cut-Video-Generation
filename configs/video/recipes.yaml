@@ -1,0 +1,122 @@
+# Ready-made starting points for the Video tab's "Start with a Recipe" row
+# (src/agents/video/recipes.py, src/ui/video_box.py).
+#
+# A recipe only sets brief fields (length, shape, objective, tone, music mood, call to action) and the words
+# put in the prompt box. The person changes any of it afterwards. It adds no fact: the script is written from the
+# property's own facts and photographs as for any other video, and a call to action carries no figure.
+#
+# Each recipe:
+#   id, name, category (a key of `categories`), description (one line for the card)
+#   duration_s, aspect, objective, tone, music_mood, cta (optional)
+#   prompt      plain words for the prompt box; {property} is the chosen property's name
+#   thumbnail   the scene of the chosen property's photographs the card shows (a key of `scenes`)
+#
+# The prompt keeps clear of the words the prompt reader acts on: highlight cues (highlight, feature, include,
+# amenities ...), camera and scene words, call-to-action cues. test_video_recipes.py reads each one to check it.
+
+# Chips above the cards, in this order ("All" is added first).
+categories:
+  launch: Launch
+  site_visit: Site visit
+  amenities: Amenities
+  lifestyle: Lifestyle
+  sustainability: Sustainability
+
+# Picture topics (src/agents/brochure/topics.py) that count as each scene. A scene with no such picture falls to
+# the scene named in `scene_fallback`; with none left the card shows a plain placeholder.
+scenes:
+  exterior: [exterior, night, arrival]
+  amenity: [pool, clubhouse, fitness, sports, kids, landscape]
+  interior: [living, dining, kitchen, bedroom, bathroom, balcony]
+  aerial: [aerial]
+scene_fallback: {aerial: exterior}
+
+# What the card says when a property is not chosen, and in the prompt where {property} would be.
+no_property_name: this property
+
+recipes:
+  - id: new_launch_teaser
+    name: New launch teaser
+    category: launch
+    description: A short, confident teaser to announce a new project.
+    duration_s: 15
+    aspect: "9:16"
+    objective: launch
+    tone: confident
+    music_mood: upbeat
+    cta: Register your interest today.
+    prompt: >-
+      A 15 second teaser to launch {property}. Confident and energetic, with upbeat music. Open on the
+      building and invite people to register their interest.
+    thumbnail: exterior
+
+  - id: site_visit_invite
+    name: Site visit invite
+    category: site_visit
+    description: A warm invitation to come and see the project in person.
+    duration_s: 15
+    aspect: "9:16"
+    objective: site_visit
+    tone: warm
+    music_mood: warm acoustic
+    cta: Book a site visit this weekend.
+    prompt: >-
+      A 15 second video that invites people to visit {property} in person. Warm and welcoming, with soft
+      acoustic music. Make them feel at home.
+    thumbnail: exterior
+
+  - id: amenity_tour
+    name: Amenity tour
+    category: amenities
+    description: A walk through what residents get to enjoy on site.
+    duration_s: 30
+    aspect: "9:16"
+    objective: awareness
+    tone: warm
+    music_mood: uplifting
+    prompt: >-
+      A 30 second look at what life at {property} offers: the pool, gym, play area, courts and the other
+      facilities residents share. Friendly and lively, with uplifting music.
+    thumbnail: amenity
+
+  - id: green_living
+    name: Green living
+    category: sustainability
+    description: A calm film built on the project's sustainability points.
+    duration_s: 30
+    aspect: "9:16"
+    objective: awareness
+    tone: warm
+    music_mood: calm and natural
+    prompt: >-
+      A 30 second film about green living at {property}, built on its sustainability points and the green
+      spaces around the homes. Calm and natural, with gentle music.
+    thumbnail: amenity
+
+  - id: family_homes
+    name: Family homes
+    category: lifestyle
+    description: The homes, with the play and fitness spaces families use.
+    duration_s: 30
+    aspect: "9:16"
+    objective: awareness
+    tone: warm
+    music_mood: warm and cheerful
+    prompt: >-
+      A 30 second video for young families about the homes at {property}, with the play area, gym and
+      fitness spaces the family shares. Warm and cheerful, with gentle music.
+    thumbnail: interior
+
+  - id: luxury_showcase
+    name: Luxury showcase
+    category: lifestyle
+    description: A refined, unhurried look at the project as a whole.
+    duration_s: 30
+    aspect: "9:16"
+    objective: awareness
+    tone: refined
+    music_mood: calm piano
+    prompt: >-
+      A 30 second luxury film of {property}. Refined and unhurried, with calm piano music. Let the
+      place speak for itself.
+    thumbnail: aerial

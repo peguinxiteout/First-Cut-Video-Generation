@@ -98,6 +98,53 @@ class VideoInput(BaseModel):
         return {k.strip(): str(v).strip() for k, v in value.items() if k.strip() and str(v).strip()}
 
 
+class VideoRecipe(BaseModel):
+    """One entry of configs/video/recipes.yaml: a ready-made start for the Video tab. It sets brief fields and the
+    prompt box's words and adds no fact. `prompt` holds {property}, replaced by the chosen property's name."""
+
+    id: str
+    name: str
+    category: str
+    description: str
+    duration_s: int
+    aspect: str
+    objective: str
+    tone: str
+    music_mood: str
+    cta: str = ""
+    prompt: str
+    thumbnail: str
+
+    @field_validator("id", "name", "category", "description", "prompt", "music_mood", "thumbnail")
+    @classmethod
+    def _text(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("must not be empty")
+        return value
+
+    @field_validator("duration_s")
+    @classmethod
+    def _duration(cls, value: int) -> int:
+        if value not in VIDEO_DURATIONS:
+            raise ValueError(f"duration_s must be one of {list(VIDEO_DURATIONS)}, got {value}")
+        return value
+
+    @field_validator("aspect")
+    @classmethod
+    def _aspect(cls, value: str) -> str:
+        if value not in VIDEO_ASPECTS:
+            raise ValueError(f"aspect must be one of {list(VIDEO_ASPECTS)}, got {value!r}")
+        return value
+
+    @field_validator("objective")
+    @classmethod
+    def _objective(cls, value: str) -> str:
+        if value not in VIDEO_OBJECTIVES:
+            raise ValueError(f"objective must be one of {list(VIDEO_OBJECTIVES)}, got {value!r}")
+        return value
+
+
 class PromptBrief(BaseModel):
     """What a free-text prompt sets (the Video tab's prompt box): the options of VideoInput it
     can steer, each None when the prompt does not say it. Length and shape come from rules only.
@@ -452,6 +499,8 @@ class VideoRequest(BaseModel):
     # Where each option of the brief came from: the toolbar, the form, the prompt, the property's saved
     # defaults (video_input.json) or the built-in default. Empty for a video made before these were kept.
     sources: dict[str, str] = Field(default_factory=dict)
+    # The recipe the video was started from (configs/video/recipes.yaml), "" when none.
+    recipe_id: str = ""
 
 
 PLAN_STATE_VERSION = 1

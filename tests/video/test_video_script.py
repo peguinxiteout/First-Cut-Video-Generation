@@ -138,6 +138,18 @@ def test_there_are_at_most_two_chips_and_each_belongs_to_a_feature_line(tmp_path
     assert s.chips[0] == "Rooftop infinity pool"
 
 
+@pytest.mark.parametrize("objective", ["awareness", "site_visit", "launch", "enquiry"])
+@pytest.mark.parametrize("tone", ["warm", "confident", "refined"])
+@pytest.mark.parametrize("cta", ["Book a site visit this weekend.", "Book a site visit this weekend", "Come and see it!"])
+def test_a_call_to_action_that_ends_with_a_full_stop_gets_no_second_one(tmp_path, objective, tone, cta):
+    plan = _plan(tmp_path, cta=cta, objective=objective, tone=tone)
+    last = plan.script.lines[-1].text
+
+    assert ".." not in last and "!." not in last and "?." not in last
+    assert last.endswith((".", "!"))
+    assert last.startswith(cta.rstrip(". "))
+
+
 def test_the_end_card_carries_rera_and_contact_and_the_call_to_action_is_the_briefs(tmp_path):
     s = _plan(tmp_path, cta="Visit this weekend").script
     assert s.cta == "Visit this weekend"

@@ -347,8 +347,8 @@ def test_the_video_tab_opens_on_the_empty_box(folder):
     assert at.radio(key="vt_length").value == "auto"
     assert at.checkbox(key="vt_offline").value is False and at.checkbox(key="vt_draft").value is False
     assert at.toggle(key="vt_plan").value is False                                 # Plan starts off
-    recipes = at.button(key="vt_recipes")
-    assert recipes.label == "Recipes, coming soon" and recipes.disabled
+    recipes_row = at.button(key="vt_recipes")
+    assert recipes_row.label == "Recipes" and not recipes_row.disabled
     assert at.button(key="vt_send").disabled
     assert "Choose a property with + before sending." in _shown(at)
     assert _estimate_line(at) == "Estimate: free · 15 s · Pan-and-zoom (free)"
@@ -517,7 +517,8 @@ def test_plan_off_reads_the_prompt_and_starts_the_full_job_with_the_toolbar_on_t
                      "brief_notes": ["'helipad' is not in this property's details; left out."],
                      "sources": {"duration_s": "toolbar", "aspect": "toolbar", "objective": "prompt",
                                  "audience": "prompt", "tone": "default", "highlights": "prompt", "cta": "default",
-                                 "music_mood": "default", "voice": "default", "model": "toolbar"}}
+                                 "music_mood": "default", "voice": "default", "model": "toolbar"},
+                     "recipe_id": ""}
     assert at.query_params["video"] in ("vid_stub000001", ["vid_stub000001"])
 
 
@@ -827,7 +828,7 @@ def test_re_plan_starts_a_new_plan_from_the_stored_request_and_keeps_the_old_one
     assert property_id == record.request.property_id == PROPERTY
     assert overrides == {"audience": "families"}
     assert flags == {"offline": True, "draft": True, "refresh_ledger": False, "prompt": "", "brief_source": "",
-                     "brief_notes": [], "sources": {}}
+                     "brief_notes": [], "sources": {}, "recipe_id": ""}
     assert at.query_params["video"] in ("vid_stub000001", ["vid_stub000001"])
     old = repository.get_generation(record.video_id)
     assert old.status == "planned" and old.script == record.script and (Path(old.output_dir) / PLAN_STATE_FILE).is_file()
@@ -1086,3 +1087,288 @@ def test_the_review_page_warns_above_the_script_when_it_is_short(folder):
         assert bool(warnings) is flagged
         if flagged:
             assert f"{words} words, {words * 100 // target}% of the {target}" in warnings[0]
+
+
+# -- recipes: "Start with a Recipe" ---------------------------------------------------------------------------------
+
+from src.agents.video import recipes  # noqa: E402
+
+RECIPE_IDS = [r.id for r in recipes.load()]
+
+
+def _cards(at) -> list[str]:
+    return [b.key.removeprefix("vt_use_") for b in at.button if b.key and b.key.startswith("vt_use_")]
+
+
+def _use(at, recipe_id):
+    at.button(key=f"vt_use_{recipe_id}").click()
+    return at.run()
+
+
+def _pictures(at) -> list[str]:
+    return [str(m.value) for m in at.markdown if str(m.value).startswith(("<img class=\"vt-thumb", "<div class=\"vt-thumb"))]
+
+
+def _chip(at):
+    return next((b for b in at.button if b.key == "vt_recipe_chip"), None)
+
+
+def test_the_row_shows_the_chips_and_a_card_for_each_recipe(folder):
+    at = _app().run()
+
+    assert not at.exception
+    assert "**Start with a Recipe**" in [str(m.value) for m in at.markdown]
+    assert at.pills(key="vt_recipe_category").options == ["All", "Launch", "Site visit", "Amenities", "Lifestyle",
+                                                         "Sustainability"]
+    assert _cards(at) == RECIPE_IDS
+    text = _shown(at)
+    for recipe in recipes.load():
+        assert recipe.name in text and recipe.description in text and f"{recipe.duration_s} s · {recipe.aspect}" in text
+    assert all(b.label == "Use this recipe" for b in at.button if b.key and b.key.startswith("vt_use_"))
+    assert _chip(at) is None
+
+
+def test_a_card_has_a_plain_placeholder_until_a_property_is_chosen_then_its_photograph(folder):
+    at = _app().run()
+    pictures = _pictures(at)
+    assert len(pictures) == len(RECIPE_IDS) and all("vt-thumb empty" in p for p in pictures)
+
+    at.radio(key="vt_property").set_value(PROPERTY).run()
+    pictures = _pictures(at)
+    assert len(pictures) == len(RECIPE_IDS)
+    assert any(p.startswith('<img class="vt-thumb"') and 'src="data:image/jpeg;base64,' in p for p in pictures)
+
+
+def test_a_category_chip_shows_only_its_recipes(folder):
+    at = _app().run()
+    at.pills(key="vt_recipe_category").set_value("Launch").run()
+    assert _cards(at) == ["new_launch_teaser"]
+
+    at.pills(key="vt_recipe_category").set_value("Lifestyle").run()
+    assert _cards(at) == ["family_homes", "luxury_showcase"]
+
+    at.pills(key="vt_recipe_category").set_value("All").run()
+    assert _cards(at) == RECIPE_IDS
+
+
+def test_using_a_recipe_fills_the_box_the_toolbar_and_shows_the_chip(folder):
+    at = _app().run()
+    at.toggle(key="vt_plan").set_value(True)
+    at.radio(key="vt_property").set_value(PROPERTY)
+    at = _use(at, "site_visit_invite")
+
+    assert not at.exception
+    recipe = recipes.get("site_visit_invite")
+    assert at.text_area(key="vt_prompt").value == recipes.prompt_text(recipe, "Aurelia Heights")
+    assert "Aurelia Heights" in at.text_area(key="vt_prompt").value and "{" not in at.text_area(key="vt_prompt").value
+    assert at.radio(key="vt_length").value == 15 and at.radio(key="vt_shape").value == "9:16"
+    assert _chip(at).label == "Recipe: Site visit invite ✕"
+    assert at.toggle(key="vt_plan").value is True                       # Plan is left as the person set it
+    assert _cards(at) == []                                             # the list folds away
+    assert at.button(key="vt_recipes_toggle").label == "Show recipes"
+    assert at.button(key="vt_send").disabled is False
+
+
+def test_using_a_recipe_leaves_plan_off_when_it_was_off(folder):
+    at = _use(_app().run(), "amenity_tour")
+    assert at.toggle(key="vt_plan").value is False
+    assert at.radio(key="vt_length").value == 30
+    assert "this property" in at.text_area(key="vt_prompt").value        # no property chosen yet
+
+
+def test_choosing_the_property_after_a_recipe_writes_its_name_in_the_recipes_words(folder):
+    at = _use(_app().run(), "new_launch_teaser")
+    at.radio(key="vt_property").set_value(PROPERTY).run()
+    assert "Aurelia Heights" in at.text_area(key="vt_prompt").value
+
+    at.text_area(key="vt_prompt").set_value("My own words about the tower").run()
+    at.radio(key="vt_property").set_value(None).run()
+    assert at.text_area(key="vt_prompt").value == "My own words about the tower"      # edited words are left alone
+
+
+def test_the_forms_start_is_the_recipes_over_the_property_file_and_the_person_can_change_it(folder):
+    (folder / "video_input.json").write_text(json.dumps({"tone": "refined", "objective": "enquiry", "audience": "NRIs"}),
+                                             encoding="utf-8")
+    at = _app().run()
+    at.toggle(key="vt_plan").set_value(True)
+    at.radio(key="vt_property").set_value(PROPERTY)
+    at = _use(at, "site_visit_invite")
+
+    assert at.selectbox(key=_key("objective")).value == "site_visit"
+    assert at.selectbox(key=_key("tone")).value == "warm"
+    assert at.text_input(key=_key("music_mood")).value == "warm acoustic"
+    assert at.text_input(key=_key("cta")).value == "Book a site visit this weekend."
+    assert at.text_input(key=_key("audience")).value == "NRIs"           # the recipe does not touch what it does not set
+
+    at.selectbox(key=_key("tone")).set_value("confident").run()
+    assert at.selectbox(key=_key("tone")).value == "confident"
+
+
+def test_a_recipe_used_after_the_form_was_edited_starts_the_form_again(folder):
+    at = _app().run()
+    at.toggle(key="vt_plan").set_value(True)
+    at.radio(key="vt_property").set_value(PROPERTY).run()
+    at.text_input(key=_key("cta")).set_value("My own line").run()
+    at = _use(at, "new_launch_teaser")
+
+    assert at.text_input(key=_key("cta")).value == "Register your interest today."
+    assert at.selectbox(key=_key("objective")).value == "launch"
+
+
+def test_the_cross_on_the_chip_clears_what_the_recipe_put_there(folder):
+    at = _app().run()
+    at.toggle(key="vt_plan").set_value(True)
+    at.radio(key="vt_property").set_value(PROPERTY)
+    at = _use(at, "site_visit_invite")
+    at.selectbox(key=_key("objective")).set_value("launch").run()
+    assert at.selectbox(key=_key("objective")).value == "launch"
+    at.button(key="vt_recipe_chip").click().run()
+
+    assert not at.exception
+    assert _chip(at) is None
+    assert at.text_area(key="vt_prompt").value == ""
+    assert at.radio(key="vt_length").value == "auto" and at.radio(key="vt_shape").value == "auto"
+    assert at.selectbox(key=_key("objective")).value == "awareness"       # the file's (the default) again
+    assert at.text_input(key=_key("cta")).value == ""
+    assert at.toggle(key="vt_plan").value is True
+
+
+def test_the_cross_keeps_words_and_choices_the_person_changed(folder):
+    at = _use(_app().run(), "site_visit_invite")
+    at.radio(key="vt_length").set_value(45)
+    at.text_area(key="vt_prompt").set_value("My own words")
+    at = at.run()
+    at.button(key="vt_recipe_chip").click().run()
+
+    assert _chip(at) is None
+    assert at.text_area(key="vt_prompt").value == "My own words" and at.radio(key="vt_length").value == 45
+    assert at.radio(key="vt_shape").value == "auto"                       # still the recipe's own: cleared
+
+
+def test_the_plus_menus_recipes_row_opens_the_list_again(folder):
+    at = _use(_app().run(), "amenity_tour")
+    assert _cards(at) == []
+
+    at.button(key="vt_recipes").click().run()
+    assert _cards(at) == RECIPE_IDS
+    assert at.button(key="vt_recipes_toggle").label == "Hide recipes"
+    assert _chip(at) is not None                                          # the recipe in use stays
+
+    at.button(key="vt_recipes_toggle").click().run()
+    assert _cards(at) == []
+
+
+def test_the_recipe_is_recorded_on_the_request_with_plan_off(folder, calls, read):
+    at = _app().run()
+    at.radio(key="vt_property").set_value(PROPERTY)
+    at = _use(at, "new_launch_teaser")
+    words = at.text_area(key="vt_prompt").value
+    at.button(key="vt_send").click().run()
+
+    (property_id, overrides, flags), = calls["plan"]
+    assert flags["recipe_id"] == "new_launch_teaser"
+    assert overrides == {"duration_s": 15, "aspect": "9:16", "objective": "launch", "tone": "confident",
+                         "music_mood": "upbeat", "cta": "Register your interest today."}
+    assert flags["prompt"] == words
+    assert {k: v for k, v in flags["sources"].items() if v == "recipe"} == {
+        "duration_s": "recipe", "aspect": "recipe", "objective": "recipe", "tone": "recipe", "cta": "recipe",
+        "music_mood": "recipe"}
+
+
+def test_no_recipe_means_no_recipe_id(folder, calls, read):
+    at = _choose(_app().run())
+    at.button(key="vt_send").click().run()
+    assert calls["plan"][0][2]["recipe_id"] == ""
+    assert "recipe" not in calls["plan"][0][2]["sources"].values()
+
+
+def test_the_prompt_the_toolbar_and_the_file_sit_around_the_recipe_with_plan_off(folder, calls, read):
+    (folder / "video_input.json").write_text(json.dumps({"voice": "male", "audience": "NRIs", "tone": "warm"}),
+                                             encoding="utf-8")
+    read.result = PromptBriefResult(PromptBrief(tone="refined", audience="families"), [], "rules")
+    at = _app().run()
+    at.radio(key="vt_property").set_value(PROPERTY)
+    at = _use(at, "new_launch_teaser")
+    at.radio(key="vt_length").set_value(30)
+    at.run().button(key="vt_send").click().run()
+
+    (_, overrides, flags), = calls["plan"]
+    assert overrides["duration_s"] == 30                                  # the toolbar beats the recipe
+    assert overrides["tone"] == "refined" and overrides["audience"] == "families"      # the prompt beats the recipe
+    assert overrides["objective"] == "launch" and overrides["cta"] == "Register your interest today."      # the recipe
+    sources = flags["sources"]
+    assert sources["duration_s"] == "toolbar" and sources["aspect"] == "recipe"
+    assert sources["tone"] == "prompt" and sources["audience"] == "prompt"
+    assert sources["objective"] == "recipe" and sources["music_mood"] == "recipe" and sources["cta"] == "recipe"
+    assert sources["voice"] == "saved defaults"                           # the file, below the recipe
+
+
+def test_the_recipe_beats_the_file_but_not_the_form_with_plan_on(folder, calls, read):
+    (folder / "video_input.json").write_text(json.dumps({"tone": "refined", "objective": "enquiry", "cta": "Call us"}),
+                                             encoding="utf-8")
+    read.result = PromptBriefResult(PromptBrief(music_mood="calm piano"), [], "rules")
+    at = _app().run()
+    at.toggle(key="vt_plan").set_value(True)
+    at.radio(key="vt_property").set_value(PROPERTY)
+    at = _use(at, "site_visit_invite")
+    at.text_input(key=_key("cta")).set_value("Visit on Sunday")           # the form beats everything below the toolbar
+    at.run().button(key="vt_send").click().run()
+
+    (_, overrides, flags), = calls["plan"]
+    assert overrides["objective"] == "site_visit" and overrides["tone"] == "warm"       # the recipe over the file
+    assert overrides["cta"] == "Visit on Sunday"                                         # the form over the recipe
+    assert overrides["music_mood"] == "calm piano"                                       # the prompt over the recipe
+    assert overrides["duration_s"] == 15 and overrides["aspect"] == "9:16"
+    sources = flags["sources"]
+    assert sources["cta"] == "form" and sources["music_mood"] == "prompt"
+    assert sources["objective"] == "recipe" and sources["tone"] == "recipe"
+
+
+def test_a_value_the_recipes_own_words_gave_back_is_the_recipes_not_the_prompts(folder, calls, read):
+    recipe = recipes.get("new_launch_teaser")
+    read.result = PromptBriefResult(PromptBrief(duration_s=15, objective="launch", tone="confident"), [], "rules")
+    at = _app().run()
+    at.radio(key="vt_property").set_value(PROPERTY)
+    at = _use(at, "new_launch_teaser")
+    at.run().button(key="vt_send").click().run()
+    sources = calls["plan"][0][2]["sources"]
+    assert sources["objective"] == "recipe" and sources["tone"] == "recipe" and sources["duration_s"] == "recipe"
+
+    calls["plan"].clear()
+    at = _use(_app().run(), "new_launch_teaser")
+    at.radio(key="vt_property").set_value(PROPERTY).run()
+    at.text_area(key="vt_prompt").set_value(recipes.prompt_text(recipe, "Aurelia Heights") + " Make it bold.").run()
+    at.button(key="vt_send").click().run()
+    sources = calls["plan"][0][2]["sources"]
+    assert sources["objective"] == "prompt" and sources["tone"] == "prompt"       # the words were edited: the prompt's
+
+
+def test_the_brief_table_and_panel_name_the_recipe(folder, calls):
+    record = _planned(folder)
+    record.request = record.request.model_copy(update={
+        "prompt": "A 15 second teaser", "brief_source": "rules", "recipe_id": "new_launch_teaser",
+        "sources": {"duration_s": "recipe", "aspect": "recipe", "objective": "recipe", "audience": "default",
+                    "tone": "recipe", "highlights": "default", "cta": "recipe", "music_mood": "recipe",
+                    "voice": "default", "model": "default"}})
+    repository.save_generation(record)
+    at = _app(video=record.video_id).run()
+
+    by = {r["Option"]: r for r in at.table[0].value.to_dict("records")}
+    assert by["Objective"]["From"] == "Recipe" and by["Call to action"]["From"] == "Recipe"
+    assert "Started from the recipe: New launch teaser" in _shown(at)
+
+
+def test_re_plan_keeps_the_recipe(folder, calls):
+    record = _planned(folder)
+    record.request = record.request.model_copy(update={"recipe_id": "green_living"})
+    repository.save_generation(record)
+    at = _app(video=record.video_id).run()
+    at.button(key=f"vt_replan_{record.video_id}").click().run()
+    assert calls["plan"][0][2]["recipe_id"] == "green_living"
+
+
+def test_a_recipe_that_is_no_longer_offered_is_dropped(folder):
+    at = _app()
+    at.session_state["vt_recipe"] = "gone"
+    at = at.run()
+    assert not at.exception and _chip(at) is None

@@ -683,3 +683,66 @@ def test_a_clean_model_direction_is_unchanged_and_adds_no_note(folder, model):
     result = prompt_brief.read_prompt("A calm reel", folder)
     assert result.brief.creative_direction == "Unhurried and calm, with soft evening light."
     assert not [n for n in result.notes if "not used" in n or "not printed" in n]
+
+
+# -- fixes from vid_57fc719d45 -----------------------------------------------------------------------------
+
+LENGTH_PROMPT = ("I am planning to generate a marketing video that runs for 15 seconds to give potential buyers a "
+                 "quick, engaging tour of this property.")
+
+
+def test_a_length_followed_by_to_and_a_verb_is_a_length_but_a_distance_to_a_place_is_not():
+    assert prompt_brief.length_of("a video that runs for 15 seconds to give buyers a tour") == 15
+    assert prompt_brief.length_of("30 seconds to showcase the pool") == 30
+    assert prompt_brief.length_of("2 minutes to the metro") is None
+    assert prompt_brief.length_of("5 minutes to a school") is None
+
+
+def test_the_length_in_the_runs_sentence_is_read_and_not_called_a_figure(folder):
+    result = read(LENGTH_PROMPT, folder)
+
+    assert result.brief.duration_s == 15
+    assert not any("figure" in n for n in result.notes)
+    assert result.brief.creative_direction is None                  # nothing of that sentence is style
+
+
+def test_a_second_mention_of_the_length_says_the_length_was_taken_from_the_prompt(folder):
+    result = read("A 30 second reel. Keep it to about 30 so buyers see it all.", folder)
+
+    assert result.brief.duration_s == 30
+    assert prompt_brief.LENGTH_NOTE in result.notes
+    assert not any("figure" in n for n in result.notes)
+    assert (result.brief.creative_direction or "") == ""             # that sentence is not passed on as direction
+
+
+def test_a_sentence_with_another_figure_is_still_refused_as_a_claim(folder):
+    result = read("A 30 second reel. Offer a 20% discount to buyers this month.", folder)
+
+    assert any("a figure that is not in this property's facts" in n for n in result.notes)
+    assert prompt_brief.LENGTH_NOTE not in result.notes
+    assert "discount" not in (result.brief.creative_direction or "")
+
+
+@pytest.mark.parametrize("phrase", ["before ending", "after sunset", "while walking through", "then the lobby",
+                                    "from the balcony", "into the garden", "toward the skyline"])
+def test_a_phrase_that_starts_with_a_conjunction_or_preposition_gets_no_refusal_note(phrase, folder):
+    cfg = prompt_brief._config()
+    facts = prompt_brief._facts_of(load_property_input(folder), folder)
+    notes: list[str] = []
+
+    prompt_brief._check_highlights([phrase], facts, cfg, notes)
+    assert notes == []
+
+
+def test_a_missing_amenity_is_still_said(folder):
+    cfg = prompt_brief._config()
+    facts = prompt_brief._facts_of(load_property_input(folder), folder)
+    notes: list[str] = []
+
+    prompt_brief._check_highlights(["helipad"], facts, cfg, notes)
+    assert notes == ["'helipad' is not in this property's details; left out."]
+
+
+@pytest.mark.parametrize("prompt", ["an upscale launch film", "Upscale living", "a video with an upscale feel"])
+def test_upscale_reads_as_refined(prompt, folder):
+    assert read(prompt, folder).brief.tone == "refined"
