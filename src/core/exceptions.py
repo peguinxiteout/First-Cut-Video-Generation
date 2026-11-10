@@ -24,3 +24,11 @@ class RenderingError(PlatformError):
 
 class WorkflowError(PlatformError):
     """A workflow node failed in a non-recoverable way."""
+
+
+class JobError(PlatformError):
+    """A background video job cannot be started or moved on."""
+
+
+class JobBusyError(JobError):
+    """Another video job is planning or producing; one runs at a time."""

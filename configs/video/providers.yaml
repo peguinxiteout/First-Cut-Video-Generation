@@ -1,0 +1,190 @@
+# Image-to-video providers. The Video tab's model selector, Auto and the
+# cost estimate are all read from here: adding a model is one entry, plus an
+# adapter in src/models/video_gen/registry.py when it is a new vendor.
+#
+#   label                      what the person sees in the selector
+#   adapter                    a key of registry.ADAPTERS; one adapter can serve several entries
+#   key_env                    the setting / environment variable holding the key; null = none needed
+#   auto_priority              Auto tries the lowest first; null = never picked by Auto
+#   cost_per_second            USD per second of video; null = price not set (no estimate is shown)
+#   max_duration_s             the longest clip one call returns
+#   supports_first_last_frame  whether a closing keyframe can be sent
+#   hidden                     kept out of the selector (tests, development)
+#   offered                    false: listed but never available or picked by Auto (the adapter is
+#                              registered and only scripts call it; true once it is wired into a run)
+#   endpoint, params           handed to the adapter as written
+#
+# What the selector shows about a vendor's model (no adapter reads these):
+#   vendor, model_id           who sells it and what it is called
+#   cost_basis                 per_second | per_clip | credits (credits: no dollar estimate)
+#   cost_per_clip, clip_s      a clip price and its length, when the vendor prices a clip
+#                              (the estimate is the price over the length times the video's seconds)
+#   cost_by_resolution         the rate at each resolution, for the reader
+#   price_from                 true: cost_per_second is the lowest tier, shown as "from"
+#   free_tier                  what the free tier gives, in words
+#   watermark_free_tier        the free tier's clips carry a watermark and cannot be used
+#   verified, price_source     verified: false = the price was given to us, not checked against
+#                              the vendor; price_source says by whom and when
+#
+# pan-and-zoom (kenburns) is the last link of every chain. It needs no key
+# and is never chosen by Auto as a "model".
+
+# How long a provider that reported its allowance spent is skipped, across runs.
+quota_cooldown_hours: 12
+
+providers:
+  kenburns:
+    label: "Pan-and-zoom (free)"
+    adapter: kenburns
+    key_env: null
+    auto_priority: null
+    cost_per_second: 0
+    max_duration_s: 8
+    supports_first_last_frame: false
+
+  mock:
+    label: "Mock (tests)"
+    adapter: mock
+    key_env: null
+    auto_priority: null
+    cost_per_second: 0
+    max_duration_s: 10
+    supports_first_last_frame: true
+    hidden: true
+
+  # The three below go through fal.ai (one FAL_KEY), adapter models/video_gen/fal.py. Endpoints and
+  # prices from fal's model pages, read 7 Nov 2026. Not offered yet: a video run never reaches fal
+  # (policy.yaml blanks FAL_KEY and sets pan-and-zoom); scripts/test_ai_motion.py calls them directly.
+  # MiniMax H3 Max: billed per second of video made (a clip runs about 0.7 s over what is asked).
+  # Standard rates from 16 Nov 2026; until 15 Nov they are 30% lower (768P $0.056/s).
+  minimax_h3_max:
+    label: "MiniMax H3 Max"
+    vendor: "fal.ai"
+    adapter: fal
+    offered: false
+    endpoint: minimax/h3-max/image-to-video
+    key_env: FAL_KEY
+    auto_priority: 10
+    cost_per_second: 0.08
+    cost_by_resolution: {480P: 0.05, 768P: 0.08, 1080P: 0.16}
+    max_duration_s: 10
+    supports_first_last_frame: true
+    price_source: "fal.ai/models/minimax/h3-max/image-to-video, 7 Nov 2026"
+    params:
+      input: {resolution: 768P, prompt_expansion_mode: disabled}
+      end_frame_field: end_image_url
+      duration: {kind: seconds, min: 2, overrun_s: 0.7}
+      negative_prompt: false
+      billing: per_second
+
+  # Kling 2.5 Turbo Pro: $0.35 for 5 s, $0.07 each second over; durations "5" or "10" only.
+  kling_25_turbo_pro:
+    label: "Kling 2.5 Turbo Pro"
+    vendor: "fal.ai"
+    adapter: fal
+    offered: false
+    endpoint: fal-ai/kling-video/v2.5-turbo/pro/image-to-video
+    key_env: FAL_KEY
+    auto_priority: 20
+    cost_per_second: 0.07
+    cost_per_clip: 0.35
+    clip_s: 5
+    max_duration_s: 10
+    supports_first_last_frame: true
+    price_source: "fal.ai/models/fal-ai/kling-video/v2.5-turbo/pro/image-to-video, 7 Nov 2026"
+    params:
+      input: {cfg_scale: 0.5}
+      end_frame_field: tail_image_url
+      duration: {kind: choices, choices: ["5", "10"]}
+      negative_prompt: true
+      billing: per_clip
+
+  # Premium: chosen by name, not by Auto. Endpoint and price not set yet, so it stays unavailable.
+  seedance_2:
+    label: "Seedance 2.0"
+    vendor: "fal.ai"
+    adapter: fal
+    offered: false
+    endpoint: TODO
+    key_env: FAL_KEY
+    auto_priority: null
+    cost_per_second: null
+    max_duration_s: 10
+    supports_first_last_frame: true
+
+  # Image-to-video models from other vendors, listed so the choice is visible. None has an
+  # adapter yet, so each shows as unavailable ("not available yet") and Auto never picks one.
+  # Every price and allowance below was given to us on 5 Nov 2026 and has not been checked
+  # against the vendor (verified: false). model_id is the model's name as given; the vendor's
+  # API id is set with the adapter. Max clip length is left at the default where it was not given.
+  magic_hour_wan22_i2v:
+    label: "Magic Hour Wan 2.2 I2V"
+    vendor: "Magic Hour"
+    model_id: "Wan 2.2 I2V"
+    adapter: magic_hour
+    key_env: MAGIC_HOUR_API_KEY
+    auto_priority: null
+    cost_basis: credits
+    free_tier: "free signup credits"
+    verified: false
+    price_source: "given by owner, 5 Nov 2026"
+
+  eightscale_wan22_14b_i2v:
+    label: "8Scale Wan 2.2 14B I2V"
+    vendor: "8Scale"
+    model_id: "Wan 2.2 14B I2V"
+    adapter: eightscale
+    key_env: EIGHTSCALE_API_KEY
+    auto_priority: null
+    cost_basis: per_clip
+    cost_per_clip: 0.01
+    clip_s: 3
+    price_from: true
+    free_tier: "10 free generations"
+    verified: false
+    price_source: "given by owner, 5 Nov 2026"
+
+  # Free tier: watermarked, up to 4 s, lowest resolution. The paid clip length was not given.
+  nodaro_seedance_2_fast:
+    label: "Nodaro Seedance 2 Fast"
+    vendor: "Nodaro"
+    model_id: "Seedance 2 Fast"
+    adapter: nodaro
+    key_env: NODARO_API_KEY
+    auto_priority: null
+    cost_basis: credits
+    max_duration_s: 4
+    free_tier: "free tier up to 4 s at the lowest resolution"
+    watermark_free_tier: true
+    verified: false
+    price_source: "given by owner, 5 Nov 2026"
+
+  nodaro_veo_31_lite:
+    label: "Nodaro Veo 3.1 Lite"
+    vendor: "Nodaro"
+    model_id: "Veo 3.1 Lite"
+    adapter: nodaro
+    key_env: NODARO_API_KEY
+    auto_priority: null
+    cost_basis: credits
+    max_duration_s: 4
+    free_tier: "free tier up to 4 s at the lowest resolution"
+    watermark_free_tier: true
+    verified: false
+    price_source: "given by owner, 5 Nov 2026"
+
+  # cost_per_second is the 480p rate; 720p is in cost_by_resolution.
+  eternal_ai_wan22_i2v:
+    label: "Eternal AI Wan 2.2 I2V"
+    vendor: "Eternal AI"
+    model_id: "Wan 2.2 I2V"
+    adapter: eternal_ai
+    key_env: ETERNAL_AI_API_KEY
+    auto_priority: null
+    cost_basis: per_second
+    cost_per_second: 0.005
+    cost_by_resolution: {480p: 0.005, 720p: 0.015}
+    price_from: true
+    free_tier: "$2 signup credits"
+    verified: false
+    price_source: "given by owner, 5 Nov 2026"

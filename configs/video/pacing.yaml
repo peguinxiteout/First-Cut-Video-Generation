@@ -1,0 +1,155 @@
+# How a video is cut: output sizes, shot length, and the defaults a brief
+# falls back on. Read by agents/video/brief.py and storyboard.py.
+
+# Output size (width, height) by aspect ratio. A draft renders small and fast
+# for previews; final is what is posted.
+sizes:
+  final:
+    "9:16": [1080, 1920]
+    "16:9": [1920, 1080]
+    "1:1": [1080, 1080]
+  draft:
+    "9:16": [540, 960]
+    "16:9": [960, 540]
+    "1:1": [540, 540]
+fps:
+  final: 25
+  draft: 12
+
+# The closing card (palette, logo, call to action, RERA, contact) and the
+# opening shot. Both in seconds. The hook shot is never shorter than min_hook_s, in the
+# plan or on the timeline: the time comes from the shots after it.
+end_card_s: 2.0
+min_hook_s: 2.5
+
+# Average length of a photograph's shot, by pace. A category sets the pace;
+# a tone can override it.
+paces:
+  brisk: 2.5
+  steady: 3.0
+  calm: 3.6
+category_pace:
+  affordable: brisk
+  mid: steady
+  luxury: calm
+tone_pace:
+  confident: brisk
+  refined: calm
+
+# Defaults by category, used when the brief does not say.
+category_tone:
+  affordable: warm
+  mid: warm
+  luxury: refined
+music_mood:
+  affordable: upbeat
+  mid: warm acoustic
+  luxury: calm cinematic
+
+# How long a still may be held. The plan aims for target_s a shot (more shots when the pace would
+# make them longer) and a continuation shot takes another photograph rather than stretch the shot
+# before; cap_s is the longest the plan means to hold one, and a hold over it is said in the notes
+# (a photograph that is the only one left cannot be swapped). The quality gate measures the longest
+# hold on the finished timeline, closing card left out: pass up to warn_s, warn up to fail_s, fail above.
+hold:
+  target_s: 3.5
+  cap_s: 4.5
+  warn_s: 4.5
+  fail_s: 6.0
+
+# A photograph this small (its shorter side, in pixels) is not used for a
+# shot: stretched to a full frame it would look soft.
+min_photo_side_px: 500
+
+# A photograph may be shown a second time, cropped and moved differently,
+# when there are fewer pictures than shots. Never more than this often.
+max_reuse_per_photo: 1
+
+# Longest hook, in words. The first line has to land in about two seconds.
+max_hook_words: 9
+
+# Camera moves to cycle through, by the shape of the photograph in this
+# frame. A landscape picture in a portrait frame has room to travel
+# sideways; a tall one has room to travel up and down.
+camera_cycles:
+  wide: [pan_right, push_in, pan_left, pull_out]
+  tall: [tilt_up, push_in, pull_out, tilt_down]
+hook_camera: push_in
+
+# What each move is asked to do when a video model takes over from
+# pan-and-zoom: motion only, the picture stays as it is.
+motion_phrases:
+  push_in: slow push in towards the centre of the scene
+  pull_out: slow pull back to reveal more of the scene
+  pan_left: slow steady pan to the left
+  pan_right: slow steady pan to the right
+  tilt_up: slow tilt upwards
+  tilt_down: slow tilt downwards
+  still: hold still
+motion_suffix: Keep the building, rooms and views exactly as shown. Add no people, objects or text.
+
+# Where the narration sits on the timeline (seconds). The lead is the breath
+# before the first word, a gap the pause between lines, the tail what follows
+# the last word. When the narration is shorter than the video the spare time
+# is shared out between them; when it is longer the lead and gaps shrink to
+# their minimums, then the closing card to min_end_card_s. Speech is never
+# sped up. pre_roll_s is how early a cut lands before the line it introduces.
+voice:
+  lead_s: 0.3
+  gap_s: 0.25
+  tail_s: 0.3
+  min_lead_s: 0.1
+  min_gap_s: 0.1
+  min_end_card_s: 1.5
+  max_end_card_s: 3.0          # spare time goes to the photograph shots, not the card
+  min_other_shot_s: 1.0         # the least a shot may be cut to, to give the hook its minimum
+  pre_roll_s: 0.15
+  fit_tolerance_s: 0.5
+
+# On-screen text: fade length, how long after a shot starts its text appears,
+# how long before the shot ends it goes, and the width of an SRT caption line.
+# Every piece of a title or the closing card is its own picture so it can come
+# in on its own: it fades in while sliding up slide_px (at a 1080 px frame
+# width) over slide_s, the next piece stagger_s after it.
+overlays:
+  fade_s: 0.3
+  title_delay_s: 0.35
+  tail_s: 0.15
+  caption_chars_per_line: 42
+  slide_px: 40
+  slide_s: 0.45
+  title_stagger_s: 0.15
+  card_stagger_s: 0.3
+
+# Burned-in captions: one spoken line at a time, a dark rounded box under white
+# text. bottom is where the box's lower edge sits by default, as a share of the
+# frame height; it moves up or down to clear a title, a chip or the closing
+# card's text, by at least gap_px (at 1080 px). A caption that fits nowhere inside
+# the safe zone is left off the picture (it is still in captions.srt).
+captions:
+  fade_s: 0.12
+  font_px: 50
+  bottom: 0.665
+  gap_px: 28
+  width_share: 0.88      # of the safe zone's width
+
+# The finished file.
+compose:
+  loudness_lufs: -16
+  true_peak_db: -1.5
+  loudness_range: 11
+  crf: {final: 18, draft: 26}
+  preset: {final: medium, draft: veryfast}
+  audio_bitrate: 160k
+  thumbnail_s: 1.0
+  music_gain: 0.2
+  # A crossfade of this length at every cut, centred on the cut, so the video is
+  # as long as it was (each clip is made a little longer to feed it). 0 = hard cuts.
+  transition_s: 0.3
+  # A light, even grade over every photograph (not the closing card: its colours
+  # are the brand's). Set enabled false to turn it off for every video.
+  grade:
+    enabled: true
+    contrast: 1.05
+    saturation: 1.10
+    brightness: 0.0

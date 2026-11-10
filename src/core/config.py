@@ -119,6 +119,20 @@ class Settings(BaseSettings):
     # going nowhere before the chain even tried the second vendor.
     image_gen_budget_s: float = 210.0
 
+    # --- Video generation ---------------------------------------------------
+    # "auto" -> the chain in configs/video/speech.yaml: Google Cloud TTS, Gemini
+    # TTS, a voice on this machine, then a silent track timed to the script.
+    # A name forces one.
+    speech_provider: str = "auto"
+    google_cloud_tts_api_key: str = ""
+    # Music: the chain in configs/video/music.yaml; Beatoven first.
+    beatoven_api_key: str = ""
+    gemini_tts_model: str = "gemini-3.8-flash-tts"
+    gemini_tts_voice: str = "en-in-commercial-8"
+    # "auto" -> the first available provider in configs/video/providers.yaml,
+    # then pan-and-zoom. A provider id forces one; "kenburns" never calls a model.
+    video_gen_provider: str = "auto"
+
     # --- Research tools (blog generation) --------------------------------
     # The master switch. False makes every external tool report itself
     # unavailable instead of reaching the network, which is what the test

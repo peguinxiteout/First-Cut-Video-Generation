@@ -16,7 +16,7 @@ langchain-core==0.3.13
 # argument 'proxies'" at construction time. These versions are confirmed fixed
 # and their API surface (Client(), generate_content(), chat.completions.create())
 # matches what this codebase calls.
-google-genai==2.20.0
+google-genai==2.25.0     # 2.25 is the first release with the Interactions API Gemini TTS needs
 openai==1.109.1          # used as an OpenAI-compatible client for OpenRouter
 
 # API + UI
@@ -86,3 +86,7 @@ python-docx>=1.1.0
 
 # Empty-space measurement in the layout audit
 numpy>=1.26
+
+# Video: bundles an ffmpeg binary (H.264 + AAC) for the video workflow, so no
+# system ffmpeg is needed. Used only through imageio_ffmpeg.get_ffmpeg_exe().
+imageio-ffmpeg>=0.5.1

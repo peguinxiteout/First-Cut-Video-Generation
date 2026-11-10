@@ -1,0 +1,162 @@
+# The offline script: frames filled ONLY from the property's own facts.
+#
+# A frame is a sentence with {slots}. It is skipped when a slot it names is
+# empty, or when a leading condition fails: [has:pool] (an amenity zone),
+# [kw:vastu|garden] (a word in the selling points), [claim:green] (a claim
+# topic). Slots are those of src/agents/brochure/copywriter.slots (name,
+# short, place, locality, city, config, noun_lc, developer, possession,
+# price, area, ...) plus:
+#
+#   cta         the call to action, as it is said and printed
+#   item_list   up to three items of one amenity zone: "swimming pool and splash pool"
+#
+# Frames listed together are alternatives: the first that fills and passes
+# the guard is used, starting from a point that depends on the property's
+# name so two projects do not read alike. Within one video a frame is used
+# once while another that fits is unused, and not two lines in a row begin the
+# same way. The guard (agents/video/guard.py) then rejects any figure that is
+# not in the property's facts. A frame holds no fact of its own and no adjective.
+
+# How many lines a video has. There is no fixed structure by length: the hook opens, the call to action
+# closes (spoken over the end card), and between them come as many lines as the video has photograph shots
+# less the hook's (about one line a shot), added in this order until the words reach the target:
+#   1. features: the amenities a photograph shows, then the other highlights and selling points
+#   2. general lines about the property, from its own facts: its homes (`general.homes`, with `connective`
+#      before it when an interior photograph is left), its scale (`general.scale`), then the `proof` frames
+#      (configuration and place, possession, price, the developer) and `general.location` last
+# A line is only said with at least `min_words` words: a frame that fills to "Brigade." is not a line.
+# A selling point is cut to `max_claim_words` words at most (agents/video/slots.py), by cutting only.
+line_budget:
+  min_words: 3
+  max_claim_words: 10
+  extra_lines: 2          # lines beyond one a shot, when the words need them (a shot may carry two short lines)
+
+# Said before the homes line when there is an interior photograph to show: it carries no fact.
+connective:
+  - "Step inside."
+  - "Come inside."
+
+# What a person is asked to do, when they did not say.
+cta_defaults:
+  awareness: "Discover more"
+  site_visit: "Book a site visit"
+  launch: "Register your interest"
+  enquiry: "Enquire now"
+
+# How far a script may miss its word budget before it is trimmed or padded.
+word_tolerance: 0.10
+
+tones:
+  warm:
+    hook:
+      awareness:
+        - "Welcome to {short}."
+        - "Meet {short}, in {city}."
+        - "Say hello to {short}."
+      site_visit:
+        - "Come and see {short} for yourself."
+        - "Your next home is at {short}."
+      launch:
+        - "Introducing {short}, in {city}."
+        - "Introducing {short}."
+      enquiry:
+        - "Looking for a home in {locality}?"
+        - "Looking for {noun_lc} in {city}?"
+    zone:
+      - "On site: {item_list}."
+      - "Right at home: {item_list}."
+      - "{item_list}, all on site."
+      - "{item_list}, right here."
+      - "There's {item_list}."
+      - "{item_list} for every day."
+      - "Enjoy {item_list}."
+    proof:
+      - "{config} {noun_lc} at {place}."
+      - "Possession in {possession}."
+      - "Prices from {price}."
+      - "Built by {developer}."
+    general:
+      homes: ["{bed_list} bedroom homes.", "Homes of {bed_list} bedrooms.", "Choose from {bed_list} bedroom homes."]
+      scale: ["{units} {home_noun} across {acres} acres.", "{towers} towers and {units} {home_noun}."]
+      location: ["At {place}.", "{locality}, {city}."]
+    cta:
+      awareness: ["{cta}.", "{cta} at {short}.", "{cta} today."]
+      site_visit: ["{cta} today.", "{cta} at {short}.", "{cta}."]
+      launch: ["{cta}.", "{cta} today.", "{cta} at {short}."]
+      enquiry: ["{cta} today.", "{cta}.", "{cta} at {short}."]
+
+  confident:
+    hook:
+      awareness:
+        - "{short}. {city}."
+        - "This is {short}."
+        - "Meet {short}."
+      site_visit:
+        - "See {short} in person."
+        - "{short}. See it for yourself."
+      launch:
+        - "{short} is here."
+        - "Introducing {short}."
+      enquiry:
+        - "Looking in {locality}? Start with {short}."
+        - "Looking for {noun_lc} in {city}? Start here."
+    zone:
+      - "{item_list}. All on site."
+      - "Inside the gates: {item_list}."
+      - "On site: {item_list}."
+      - "{item_list}. Right here."
+      - "There's {item_list}."
+      - "{item_list}. Every day."
+      - "Enjoy {item_list}."
+    proof:
+      - "{config} {noun_lc} at {place}."
+      - "Possession: {possession}."
+      - "Prices from {price}."
+      - "From {developer}."
+    general:
+      homes: ["{bed_list} bedroom homes.", "{bed_list} bedroom {noun_lc}.", "Homes of {bed_list} bedrooms."]
+      scale: ["{units} {home_noun}. {acres} acres.", "{towers} towers. {units} {home_noun}."]
+      location: ["{locality}. {city}.", "At {place}."]
+    cta:
+      awareness: ["{cta}.", "{cta} at {short}.", "{cta} now."]
+      site_visit: ["{cta}. Today.", "{cta} now.", "{cta}."]
+      launch: ["{cta} now.", "{cta}.", "{cta} today."]
+      enquiry: ["{cta} now.", "{cta}.", "{cta} today."]
+
+  refined:
+    hook:
+      awareness:
+        - "{short}. An address in {city}."
+        - "Welcome to {short}."
+        - "Presenting {short}."
+      site_visit:
+        - "Experience {short} in person."
+        - "An invitation to see {short}."
+        - "Visit {short}."
+      launch:
+        - "Introducing {short}."
+        - "Presenting {short}, in {city}."
+      enquiry:
+        - "{short}, {locality}."
+        - "Discover {short}."
+    zone:
+      - "{item_list}, within the gates."
+      - "On site: {item_list}."
+      - "{item_list}, close at hand."
+      - "There is {item_list}, on site."
+      - "{item_list}, for every day."
+      - "Enjoy {item_list}."
+      - "Here: {item_list}."
+    proof:
+      - "{config} {noun_lc} at {place}."
+      - "Possession in {possession}."
+      - "{developer}."
+    general:
+      homes: ["{bed_list} bedroom residences.", "{bed_list} bedroom {noun_lc}.", "Residences of {bed_list} bedrooms."]
+      scale: ["{units} {home_noun} across {acres} acres.", "{towers} towers, {units} {home_noun}."]
+      location: ["{place}.", "At {place}."]
+    cta:
+      awareness: ["{cta}.", "{cta} at {short}."]
+      site_visit: ["{cta}.", "{cta} at {short}."]
+      launch: ["{cta}.", "{cta} today."]
+      enquiry: ["{cta}.", "{cta} today."]

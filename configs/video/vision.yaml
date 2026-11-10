@@ -1,0 +1,145 @@
+# How the asset audit asks the vision model about a property's pictures.
+#
+# Readings are cached per picture in data/vision_cache/ (keyed on the picture's
+# bytes, the vision model and the prompt's version), so only new pictures are asked.
+# The rest are split into batches of batch_size and at most `concurrency` batches
+# run at once. A free-tier key allows only a few dozen vision requests a day:
+# raise batch_size to spend fewer, lower it to finish sooner.
+concurrency: 3
+batch_size: 7
+
+# Part of the cache key, with a hash of the prompts below and the tag names. Raise it to
+# have every picture read again (a reading made under another version is never reused).
+version: 2
+
+# Each picture also gets a short caption and a list of tags for what is CLEARLY VISIBLE in
+# it, so the script can follow the photographs: a line about a pool plays over a picture
+# tagged pool, and a chip is printed only over a picture that carries its tag. The text
+# below is added to the brochure's classification prompt ($image_count and $tag_names are
+# filled in); the model answers with the two extra keys in each entry.
+tags_prompt: |
+  VIDEO FIELDS. For a video that must show what its narration says, ALSO include these two
+  keys in EVERY entry of the JSON above:
+    - "caption": one plain sentence of at most 14 words saying what is visible in the
+      picture. Only what you can see; no marketing words, no guesses.
+    - "tags": a list of 0 to $max_tags short lowercase tags, each naming something CLEARLY
+      VISIBLE in the picture. Prefer these names when they apply: $tag_names. When the kind
+      of view is clear, also tag it: $scene_names. A different short tag is allowed for
+      something else that is clearly visible.
+      A tag is a thing you can point to in the picture. If you cannot point to it, do not
+      tag it: do not tag what a place is for, what it might have, or what the surrounding
+      property offers. A lawn is not a "bbq" unless a barbecue or grill is visible; a lounge
+      is not a "jacuzzi" unless a jacuzzi or hot tub is visible; a tree-lined lawn is "lawn",
+      and nothing more. For a plan, map, logo or document return an empty list.
+
+max_tags: 8
+
+# Amenities a person can use, and the words that mean each. A photograph's tags, its caption, an
+# amenity in the property's list and a chip are all turned into these names (longest phrase
+# first, whole words), so "swimming pool", "pool deck" and "lap pool" are one tag, pool.
+#
+# The names and words come from the amenity lists of every property in data/properties (73
+# distinct amenity strings in 11 properties on 5 Nov 2026, read with scripts/vision_vocabulary.py,
+# which also lists what the vocabulary does not yet name), merged with the list this file had.
+# Adding a NAME changes the prompt the vision model is given, so every picture is read again on
+# its next render; adding words under `synonyms` or `not_visual` does not.
+tags:
+  pool: [pool, swimming, splash pool, lap pool, infinity pool, water body]
+  jacuzzi: [jacuzzi, hot tub, plunge pool, whirlpool]
+  gym: [gym, gymnasium, fitness, workout, weights, cardio]
+  yoga: [yoga, meditation, zen]
+  spa: [spa, sauna, steam room, wellness]
+  lawn: [lawn, garden, park, courtyard, green space, open space, landscaped, greenery, tree]
+  lounge: [lounge, clubhouse, club house, games room, game room, indoor games, pool table, billiards]
+  bbq: [bbq, barbecue, grill]
+  dining: [dining, al fresco, cafe, restaurant, food court]
+  play area: [play area, playground, kid, child, children, tot lot, sand pit, creche]
+  court: [court, tennis, badminton, basketball, squash, pickleball, cricket]
+  track: [jogging track, running track, walking track, jogging, cycling track, promenade]
+  theatre: [theatre, theater, cinema, screening]
+  amphitheatre: [amphitheatre, amphitheater]
+  rooftop: [rooftop, roof top, terrace, sky deck, sky lounge, observation deck, roof seating, roof garden]
+  hall: [multipurpose hall, community hall, party hall, banquet hall, banquet, function hall, av room]
+  coworking: [coworking, co working, business centre, business center, library]
+  pergola: [pergola, gazebo, cabana]
+  water feature: [fountain, water feature, pond, cascade, waterfall]
+
+# Phrases that stand for no amenity of their own, so their words do not count as a plainer one: a
+# "pet park" is not just any park. A line saying one is only said over a picture that carries the
+# phrase itself as a tag.
+consume: [pet park, dog park]
+
+# What a CAPTION is not read for. A caption says what is in the picture, so a word that stands for
+# an amenity in a brochure but is as often something else in a photograph is not taken from it (the
+# words still count in an amenity string, a chip and the model's tags). A tag needs the caption to
+# say it too (photo_tags.evidence), so these keep a loose word from backing a tag. Neither list is
+# part of the prompt the vision model is given: changing them does not read any picture again.
+#   tree, greenery, green space, open space, courtyard, landscaped   not a lawn
+#   kid, child, children                                              not a play area ("kids pool" is still a pool)
+#   wellness                                                           not a spa ("wellness garden")
+#   water body                                                         not a pool
+#   promenade                                                          not a jogging track
+caption_ignore: [tree, greenery, green space, open space, courtyard, landscaped, kid, child, children, wellness,
+                 water body, promenade]
+# Phrases a caption uses for something that is not an amenity, read as nothing: a home's dining room
+# is not a dining amenity.
+caption_consume: [dining room]
+
+# More words for the names above, for what a camera sees rather than what a brochure calls it. They
+# are added to each name's words; a caption such as "outdoor fitness equipment" then reads as gym.
+# Kept strict on purpose: a sofa is not a lounge (a living room has one), an outdoor kitchen is not
+# a barbecue (no grill need be in view).
+synonyms:
+  gym: [treadmill, dumbbell, exercise bike, exercise equipment, fitness equipment, weight bench, elliptical, kettlebell, barbell]
+  play area: [swing, slide, seesaw, sandpit, jungle gym, climbing frame, monkey bars, play structure, play equipment]
+  court: [basketball hoop, hoop, racket, racquet, shuttlecock, volleyball, football, futsal, sports court, sports field]
+  pool: [swimming pool, pool deck, sun lounger, diving board, kids pool, wading pool]
+  yoga: [yoga mat, yoga deck, tai chi, pilates]
+  spa: [massage, hammam]
+  lawn: [grass, turf, meadow, flower bed, shrubs]
+  bbq: [barbeque, charcoal]
+  dining: [dining table, dining area, outdoor dining, picnic table]
+  coworking: [desks, workstations, reading room]
+  theatre: [screening room, projector screen, movie screen]
+  track: [jogging path, running path, cycling path, cycle track, walking path]
+
+# What an amenity string can name that no photograph can show: utilities, safety, services. Such a
+# line (no vocabulary amenity in it) needs no picture and plays as a general line over an exterior
+# shot; it is not left out for want of one.
+not_visual: [dg backup, power backup, generator, backup, elevator, lift, security, cctv, surveillance,
+             boom barrier, fire safety, firefighting, fire fighting, rainwater, rain water, water management,
+             water treatment, sewage, stp, wtp, ev charging, ev charger, charging station, parking, car wash,
+             intercom, video door phone, smart home, wifi, wi fi, health center, health centre, clinic, daycare,
+             day care, concierge, maintenance, gated, vastu]
+
+# What kind of view a picture is. Not amenities: they place a general line (the property,
+# its design, its location) over a fitting picture and say what the hook may be.
+scenes:
+  exterior: [exterior, tower, facade, building, elevation, skyline, architecture, aerial]
+  entrance: [entrance, gate, arrival, driveway, porte cochere, lobby]
+  interior: [interior, living room, bedroom, kitchen, bathroom, apartment]
+
+# The rooms of a home, read from a picture's stored category and its caption (photo_tags.room); not
+# part of the prompt the vision model is given, so changing them reads no picture again. A caption's
+# first room phrase names the room; a picture of a home interior with no room phrase takes the room
+# of its category (`room_category`). A picture of anything else (an exterior, an amenity) has no room,
+# so a clubhouse lounge is not a home's living room. These phrases are also read out of a caption
+# before its amenities, so a home's "dining area" is a room, not the dining amenity.
+rooms:
+  living: [living room, living area, family room, drawing room]
+  bedroom: [bedroom, bed room, master bedroom]
+  kitchen: [kitchen, kitchenette]
+  dining: [dining room, dining area, dining space]
+  bathroom: [bathroom, washroom, powder room]
+  balcony: [balcony, sit out]
+  study: [study room, study area, home office, study]
+# The room a picture of these stored categories shows when its caption names none.
+room_category: {living_room: living, bedroom: bedroom, kitchen: kitchen, bathroom: bathroom}
+# Stored categories whose captions are read for a room (the rest, exterior and amenity pictures, show none).
+room_caption_categories: [living_room, bedroom, kitchen, bathroom, lifestyle, other]
+# Phrases that name a kitchen, a deck or a lounge that is not a room of a home.
+not_a_room: [outdoor kitchen, outdoor dining, rooftop, roof top, clubhouse, club house, lobby]
+
+# Words in a caption or topic that make an exterior picture a view of the whole place (the script's
+# location line prefers one).
+views: [aerial, skyline, bird, drone, overview]

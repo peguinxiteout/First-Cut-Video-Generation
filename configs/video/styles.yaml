@@ -1,0 +1,44 @@
+# What a video may show that is not the person's own photograph, by sector.
+#
+# Real estate: a generated frame may set a mood (a way of living, an amenity
+# the project lists but has no photograph of, the neighbourhood), never the
+# building, the flats or their views. Passing off a render as the real thing
+# misleads buyers; the brochure carries the same rule (ALLOWED_GENERATED_KINDS
+# in src/data/schemas.py).
+default_sector: real_estate
+
+sectors:
+  real_estate:
+    allowed_generated_kinds: [lifestyle, amenity_concept, neighbourhood]
+
+# Where text may go, as a share of the frame measured in from each edge. The
+# bottom and top bands are where a platform draws its own controls (the
+# caption, the profile, the progress bar), so nothing of ours goes there.
+safe_zones:
+  "9:16": {top: 0.14, bottom: 0.20, left: 0.06, right: 0.06}
+  "16:9": {top: 0.07, bottom: 0.12, left: 0.06, right: 0.06}
+  "1:1": {top: 0.08, bottom: 0.14, left: 0.07, right: 0.07}
+
+# How a photograph fills the frame. "fill" crops it to the frame's shape; when
+# that would enlarge its pixels more than fill_max_upscale (at the worst moment
+# of the camera move) the shot is laid out as "fit" instead: the whole photograph
+# across the frame width, on a blurred, enlarged, darkened copy of itself, with a
+# gentle move on the photograph only. Nothing is cropped away and nothing is
+# stretched past what its pixels hold.
+layout:
+  fill_max_upscale: 1.3
+  fit:
+    dim: 0.62            # brightness of the blurred copy behind the photograph (1 = as it is)
+    blur_px: 34          # its blur radius at a 1080 px frame width
+    centre_y: 0.47       # where the photograph's middle sits, from the top: a little high, the title is below
+    zoom: 0.06           # how much closer a push-in ends
+
+# ffmpeg's own appetite when the video is composed. Every clip and every overlay picture is open
+# at once, and by default each decoder takes a thread per core and a dozen frames per thread: on
+# a machine short of memory that is what runs out first ("Cannot allocate memory"). Fewer threads
+# make decoding a little slower and the memory use a good deal smaller.
+compose:
+  decode_threads: 2      # per clip (full-size H.264 frames)
+  overlay_threads: 1     # per overlay picture (a full frame of RGBA each, a dozen or more at once)
+  filter_threads: 2      # the filter graph's own threads (each holds frames of every stage it runs)
+  encode_threads: 4      # x264's (its default is one and a half per core, each with frames of its own)
